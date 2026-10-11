@@ -121,7 +121,16 @@ else
                                 <td>
                                     <span class="badge @(r.Action == "publish" ? "text-bg-primary" : "text-bg-warning")">@r.Action</span>
                                 </td>
-                                <td><code>@r.ToVersionId.ToString()[..8]</code></td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(r.ToVersionNumber))
+                                    {
+                                        <a href="/versions/@r.ToVersionId">@r.ToVersionNumber</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-body-secondary">@r.ToVersionId.ToString()[..8]</span>
+                                    }
+                                </td>
                                 <td class="text-body-secondary">@r.OperatorName</td>
                                 <td class="text-body-secondary">@r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
                             </tr>

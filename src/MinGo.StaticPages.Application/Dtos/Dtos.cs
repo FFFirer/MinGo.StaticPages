@@ -59,7 +59,9 @@ public sealed record ReleaseDto(
     Guid? FromVersionId,
     Guid ToVersionId,
     string OperatorName,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? ToVersionNumber = null,
+    string? FromVersionNumber = null);
 
 public sealed record ResolveResponse(
     string Project,

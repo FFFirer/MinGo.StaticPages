@@ -57,14 +57,7 @@ public sealed class ReleaseService(IAppDbContext db)
             .Take(100)
             .ToListAsync(ct);
 
-        return list.OrderByDescending(r => r.CreatedAt).Select(r => new ReleaseDto(
-            r.Id,
-            r.ChannelName,
-            r.Action == ReleaseAction.Publish ? "publish" : "rollback",
-            r.FromVersionId,
-            r.ToVersionId,
-            r.OperatorName,
-            r.CreatedAt)).ToList();
+        return await ToDtosAsync(list.OrderByDescending(r => r.CreatedAt).ToList(), ct);
     }
 
     private async Task<ReleaseDto> ExecuteReleaseAsync(
@@ -97,8 +90,39 @@ public sealed class ReleaseService(IAppDbContext db)
         db.Add(record);
         await db.SaveChangesAsync(ct);
 
-        return new ReleaseDto(record.Id, record.ChannelName, action == ReleaseAction.Publish ? "publish" : "rollback",
-            record.FromVersionId, record.ToVersionId, record.OperatorName, record.CreatedAt);
+        return (await ToDtosAsync([record], ct))[0];
+    }
+
+    private async Task<IReadOnlyList<ReleaseDto>> ToDtosAsync(IReadOnlyList<ReleaseRecord> records, CancellationToken ct)
+    {
+        var ids = records
+            .SelectMany(r => new[] { r.FromVersionId, r.ToVersionId })
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var numbers = ids.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Versions
+                .Where(v => ids.Contains(v.Id))
+                .ToDictionaryAsync(v => v.Id, v => v.Number, ct);
+
+        return records.Select(r =>
+        {
+            var toNumber = numbers.TryGetValue(r.ToVersionId, out var to) ? to : null;
+            var fromNumber = r.FromVersionId is Guid fromId && numbers.TryGetValue(fromId, out var from) ? from : null;
+            return new ReleaseDto(
+                r.Id,
+                r.ChannelName,
+                r.Action == ReleaseAction.Publish ? "publish" : "rollback",
+                r.FromVersionId,
+                r.ToVersionId,
+                r.OperatorName,
+                r.CreatedAt,
+                toNumber,
+                fromNumber);
+        }).ToList();
     }
 
     private async Task<Channel> GetChannelAsync(Guid projectId, string channelName, CancellationToken ct)
