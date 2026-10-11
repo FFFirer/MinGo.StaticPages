@@ -1,0 +1,52 @@
+@page "/versions/{Id:guid}"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>版本详情</PageTitle>
+
+@if (detail is null)
+{
+    <p>加载中…</p>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>@detail.Version.Number</h1>
+            <p class="muted">
+                项目 @detail.Version.ProjectId.ToString()[..8] ·
+                @detail.Version.FileCount 文件 · @detail.Version.SizeBytes.ToString("N0") bytes ·
+                @detail.Version.CreatedBy · @detail.Version.CreatedAt.ToLocalTime()
+            </p>
+        </div>
+        <a class="btn" href="/projects/@detail.Version.ProjectId">返回项目</a>
+    </div>
+
+    <h2>文件清单</h2>
+    <table class="table">
+        <thead>
+            <tr><th>路径</th><th>大小</th><th>Content-Type</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var f in detail.Files)
+            {
+                <tr>
+                    <td>@f.RelativePath</td>
+                    <td>@f.SizeBytes.ToString("N0")</td>
+                    <td>@f.ContentType</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private VersionDetailDto? detail;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        detail = await Http.GetFromJsonAsync<VersionDetailDto>($"/api/versions/{Id}");
+    }
+}

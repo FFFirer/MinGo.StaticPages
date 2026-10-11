@@ -1,0 +1,259 @@
+@page "/projects/{Id:guid}"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>项目详情</PageTitle>
+
+@if (project is null)
+{
+    <p>加载中…</p>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>@project.Name</h1>
+            <p class="muted">@project.DisplayName · @project.VersionCount 个版本 · @project.StorageBytes.ToString("N0") bytes</p>
+        </div>
+        <div class="row">
+            <button class="btn-primary" @onclick="() => showUpload = true">上传版本</button>
+            <button class="btn" @onclick="() => showRollback = true">回滚</button>
+        </div>
+    </div>
+
+    <h2>通道</h2>
+    <div class="channels">
+        @foreach (var ch in project.Channels)
+        {
+            <div class="channel-card">
+                <div class="channel-name">@ch.Name</div>
+                <div class="channel-ver">@(ch.CurrentVersionNumber ?? "未发布")</div>
+                @if (versions is not null)
+                {
+                    <select class="form-control" @bind="publishVersionId">
+                        <option value="">选择版本…</option>
+                        @foreach (var v in versions.Where(v => v.Status == VersionStatusDto.Active))
+                        {
+                            <option value="@v.Id">@v.Number</option>
+                        }
+                    </select>
+                    <button class="btn-primary" @onclick="() => PublishAsync(ch.Name)">发布到 @ch.Name</button>
+                }
+            </div>
+        }
+    </div>
+
+    <h2>版本</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>版本号</th>
+                <th>状态</th>
+                <th>文件数</th>
+                <th>大小</th>
+                <th>上传者</th>
+                <th>时间</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (versions is not null)
+            {
+                @foreach (var v in versions)
+                {
+                    <tr>
+                        <td><a href="/versions/@v.Id">@v.Number</a></td>
+                        <td>@v.Status</td>
+                        <td>@v.FileCount</td>
+                        <td>@v.SizeBytes.ToString("N0")</td>
+                        <td>@v.CreatedBy</td>
+                        <td>@v.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            @if (v.Status == VersionStatusDto.Active)
+                            {
+                                <button class="btn-danger" @onclick="() => DeleteVersionAsync(v)">删除</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    <h2>发布历史</h2>
+    <table class="table">
+        <thead>
+            <tr><th>通道</th><th>动作</th><th>目标版本</th><th>操作人</th><th>时间</th></tr>
+        </thead>
+        <tbody>
+            @if (releases is not null)
+            {
+                @foreach (var r in releases)
+                {
+                    <tr>
+                        <td>@r.ChannelName</td>
+                        <td>@r.Action</td>
+                        <td>@r.ToVersionId.ToString()[..8]</td>
+                        <td>@r.OperatorName</td>
+                        <td>@r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@if (showUpload)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h2>上传版本</h2>
+            <div class="field">
+                <label>版本号（可选）</label>
+                <input class="form-control" @bind="uploadNumber" />
+            </div>
+            <div class="field">
+                <label>Commit SHA</label>
+                <input class="form-control" @bind="uploadCommit" />
+            </div>
+            <div class="field">
+                <label>Zip 包</label>
+                <InputFile OnChange="OnFileSelected" />
+            </div>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert">@error</div>
+            }
+            @if (!string.IsNullOrEmpty(uploadStatus))
+            {
+                <p>@uploadStatus</p>
+            }
+            <div class="row">
+                <button class="btn-primary" disabled="@(file is null || uploading)" @onclick="UploadAsync">上传</button>
+                <button class="btn" @onclick="() => showUpload = false">关闭</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showRollback)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h2>回滚 production</h2>
+            <p>将 production 指回上一个发布版本。</p>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert">@error</div>
+            }
+            <div class="row">
+                <button class="btn-primary" @onclick="RollbackAsync">确认回滚</button>
+                <button class="btn" @onclick="() => showRollback = false">取消</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private ProjectDto? project;
+    private List<VersionDto>? versions;
+    private List<ReleaseDto>? releases;
+    private bool showUpload, showRollback, uploading;
+    private string uploadNumber = "", uploadCommit = "", uploadStatus = "";
+    private string? error;
+    private string publishVersionId = "";
+    private IBrowserFile? file;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        project = await Http.GetFromJsonAsync<ProjectDto>($"/api/projects/{Id}");
+        versions = await Http.GetFromJsonAsync<List<VersionDto>>($"/api/projects/{Id}/versions");
+        releases = await Http.GetFromJsonAsync<List<ReleaseDto>>($"/api/projects/{Id}/releases");
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        file = e.File;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (file is null) return;
+        uploading = true;
+        error = null;
+        uploadStatus = "上传中…";
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(maxAllowedSize: 256L * 1024 * 1024);
+            var sc = new StreamContent(stream);
+            sc.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+            content.Add(sc, "file", file.Name);
+            if (!string.IsNullOrWhiteSpace(uploadNumber))
+                content.Add(new StringContent(uploadNumber), "number");
+            if (!string.IsNullOrWhiteSpace(uploadCommit))
+                content.Add(new StringContent(uploadCommit), "commitSha");
+
+            var resp = await Http.PostAsync($"/api/projects/{Id}/versions", content);
+            if (resp.IsSuccessStatusCode)
+            {
+                showUpload = false;
+                uploadStatus = "";
+                await LoadAsync();
+            }
+            else
+            {
+                error = await resp.Content.ReadAsStringAsync();
+                uploadStatus = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            uploadStatus = "";
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private async Task PublishAsync(string channel)
+    {
+        if (string.IsNullOrEmpty(publishVersionId) || !Guid.TryParse(publishVersionId, out var vid))
+        {
+            await JS.InvokeVoidAsync("alert", "请先选择版本");
+            return;
+        }
+        var resp = await Http.PostAsJsonAsync($"/api/projects/{Id}/publish", new PublishRequest(vid, channel));
+        if (!resp.IsSuccessStatusCode)
+            await JS.InvokeVoidAsync("alert", await resp.Content.ReadAsStringAsync());
+        await LoadAsync();
+    }
+
+    private async Task RollbackAsync()
+    {
+        var resp = await Http.PostAsJsonAsync($"/api/projects/{Id}/rollback", new RollbackRequest("production"));
+        if (!resp.IsSuccessStatusCode)
+            error = await resp.Content.ReadAsStringAsync();
+        else
+            showRollback = false;
+        await LoadAsync();
+    }
+
+    private async Task DeleteVersionAsync(VersionDto v)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"删除版本 {v.Number}？")) return;
+        await Http.DeleteAsync($"/api/versions/{v.Id}");
+        await LoadAsync();
+    }
+}

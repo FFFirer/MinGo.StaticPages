@@ -1,0 +1,51 @@
+@page "/dashboard"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>仪表盘</PageTitle>
+
+<div class="page-header">
+    <h1>仪表盘</h1>
+    <a class="btn-primary" href="/projects">管理项目</a>
+</div>
+
+@if (projects is null)
+{
+    <p>加载中…</p>
+}
+else
+{
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-num">@projects.Count</div>
+            <div class="stat-label">项目</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num">@projects.Sum(p => p.VersionCount)</div>
+            <div class="stat-label">活跃版本</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num">@projects.Sum(p => p.StorageBytes).ToString("N0")</div>
+            <div class="stat-label">存储字节</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num">@projects.Count(p => p.Channels.Any(c => c.CurrentVersionId != null))</div>
+            <div class="stat-label">已发布项目</div>
+        </div>
+    </div>
+
+    <h2>快捷入口</h2>
+    <div class="row">
+        <a class="btn" href="/projects">项目列表</a>
+        <a class="btn" href="/settings/storage">存储设置</a>
+        <a class="btn" href="/resolve-demo">解析演示</a>
+    </div>
+}
+
+@code {
+    private List<ProjectDto>? projects;
+    protected override async Task OnInitializedAsync()
+        => projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects");
+}

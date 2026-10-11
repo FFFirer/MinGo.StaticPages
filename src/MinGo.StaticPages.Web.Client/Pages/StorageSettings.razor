@@ -1,0 +1,170 @@
+@page "/settings/storage"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>存储设置</PageTitle>
+
+<div class="page-header">
+    <h1>存储设置</h1>
+    <button class="btn" @onclick="TestAsync">连通性测试</button>
+</div>
+
+@if (form is null)
+{
+    <p>加载中…</p>
+}
+else
+{
+    <div class="form-grid">
+        <div class="field">
+            <label>Provider</label>
+            <select class="form-control" @bind="form.Provider">
+                <option value="Local">Local</option>
+                <option value="S3">S3</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Service URL（S3）</label>
+            <input class="form-control" @bind="form.ServiceUrl" />
+        </div>
+        <div class="field">
+            <label>Region</label>
+            <input class="form-control" @bind="form.Region" />
+        </div>
+        <div class="field">
+            <label>Access Key</label>
+            <input class="form-control" @bind="form.AccessKey" />
+        </div>
+        <div class="field">
+            <label>Secret Key（留空不改）</label>
+            <input type="password" class="form-control" @bind="secretKey" />
+        </div>
+        <div class="field">
+            <label>Bucket</label>
+            <input class="form-control" @bind="form.Bucket" />
+        </div>
+        <div class="field">
+            <label>Prefix</label>
+            <input class="form-control" @bind="form.Prefix" />
+        </div>
+        <div class="field">
+            <label>Force Path Style</label>
+            <input type="checkbox" @bind="form.ForcePathStyle" />
+        </div>
+        <div class="field">
+            <label>Local Root</label>
+            <input class="form-control" @bind="form.LocalRoot" />
+        </div>
+        <div class="field">
+            <label>Max Package Bytes</label>
+            <input type="number" class="form-control" @bind="form.MaxPackageBytes" />
+        </div>
+        <div class="field">
+            <label>Max File Count</label>
+            <input type="number" class="form-control" @bind="form.MaxFileCount" />
+        </div>
+        <div class="field">
+            <label>Max Single File Bytes</label>
+            <input type="number" class="form-control" @bind="form.MaxSingleFileBytes" />
+        </div>
+        <div class="field">
+            <label>Resolve 需要鉴权</label>
+            <input type="checkbox" @bind="form.ResolveRequireAuth" />
+        </div>
+        <div class="field">
+            <label>已发布缓存秒数</label>
+            <input type="number" class="form-control" @bind="form.PublishedCacheSeconds" />
+        </div>
+        <div class="field">
+            <label>按版本缓存秒数</label>
+            <input type="number" class="form-control" @bind="form.VersionCacheSeconds" />
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert">@message</div>
+    }
+
+    <button class="btn-primary" @onclick="SaveAsync">保存</button>
+}
+
+@code {
+    private StorageForm? form;
+    private string secretKey = "";
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var dto = await Http.GetFromJsonAsync<StorageSettingsDto>("/api/settings/storage");
+        if (dto is not null)
+        {
+            form = new StorageForm
+            {
+                Provider = dto.Provider,
+                ServiceUrl = dto.ServiceUrl,
+                Region = dto.Region,
+                AccessKey = dto.AccessKey,
+                Bucket = dto.Bucket,
+                Prefix = dto.Prefix,
+                ForcePathStyle = dto.ForcePathStyle,
+                LocalRoot = dto.LocalRoot,
+                MaxPackageBytes = dto.MaxPackageBytes,
+                MaxFileCount = dto.MaxFileCount,
+                MaxSingleFileBytes = dto.MaxSingleFileBytes,
+                ResolveRequireAuth = dto.ResolveRequireAuth,
+                PublishedCacheSeconds = dto.PublishedCacheSeconds,
+                VersionCacheSeconds = dto.VersionCacheSeconds
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (form is null) return;
+        var req = new UpdateStorageSettingsRequest(
+            form.Provider,
+            form.ServiceUrl,
+            form.Region,
+            form.AccessKey,
+            string.IsNullOrEmpty(secretKey) ? null : secretKey,
+            form.Bucket,
+            form.Prefix,
+            form.ForcePathStyle,
+            form.LocalRoot,
+            form.MaxPackageBytes,
+            form.MaxFileCount,
+            form.MaxSingleFileBytes,
+            form.ResolveRequireAuth,
+            form.PublishedCacheSeconds,
+            form.VersionCacheSeconds);
+
+        var resp = await Http.PutAsJsonAsync("/api/settings/storage", req);
+        message = resp.IsSuccessStatusCode ? "已保存" : await resp.Content.ReadAsStringAsync();
+    }
+
+    private async Task TestAsync()
+    {
+        var resp = await Http.PostAsync("/api/settings/storage/test", null);
+        message = await resp.Content.ReadAsStringAsync();
+    }
+
+    private sealed class StorageForm
+    {
+        public string Provider { get; set; } = "Local";
+        public string? ServiceUrl { get; set; }
+        public string Region { get; set; } = "us-east-1";
+        public string? AccessKey { get; set; }
+        public string Bucket { get; set; } = "static-pages";
+        public string Prefix { get; set; } = "";
+        public bool ForcePathStyle { get; set; } = true;
+        public string LocalRoot { get; set; } = "storage-data";
+        public int MaxPackageBytes { get; set; }
+        public int MaxFileCount { get; set; }
+        public int MaxSingleFileBytes { get; set; }
+        public bool ResolveRequireAuth { get; set; }
+        public int PublishedCacheSeconds { get; set; }
+        public int VersionCacheSeconds { get; set; }
+    }
+}

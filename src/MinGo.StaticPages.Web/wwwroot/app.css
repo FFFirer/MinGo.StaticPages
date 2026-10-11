@@ -1,0 +1,115 @@
+/* MinGo Static Pages console */
+:root {
+  --bg: #0f1419;
+  --panel: #1a2332;
+  --border: #2d3a4d;
+  --text: #e7ecf3;
+  --muted: #8b9bb4;
+  --accent: #3d8bfd;
+  --danger: #e5534b;
+  --ok: #3fb950;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); min-height: 100%; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.top-nav {
+  display: flex; align-items: center; gap: 24px;
+  padding: 12px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand a { font-weight: 700; font-size: 18px; color: var(--text); }
+.nav-links { display: flex; gap: 16px; flex: 1; }
+.nav-links a { color: var(--muted); }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+.nav-user { display: flex; gap: 12px; align-items: center; color: var(--muted); }
+
+.main-content { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+.page-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 20px; gap: 16px;
+}
+.page-header h1 { margin: 0 0 4px; font-size: 28px; }
+.muted { color: var(--muted); margin: 0; }
+
+h2 { font-size: 18px; margin: 28px 0 12px; color: var(--text); }
+
+.table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 8px; overflow: hidden; }
+.table th, .table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.table th { color: var(--muted); font-weight: 600; font-size: 13px; }
+.table tr:last-child td { border-bottom: none; }
+
+.btn, .btn-primary, .btn-danger {
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn:hover, .btn-primary:hover, .btn-danger:hover { filter: brightness(1.1); }
+
+.form-control {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+}
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+.row { display: flex; gap: 8px; margin-top: 12px; }
+
+.alert {
+  background: rgba(229, 83, 75, 0.15); border: 1px solid var(--danger);
+  color: var(--danger); padding: 8px 12px; border-radius: 6px; margin: 8px 0;
+}
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+.modal {
+  background: var(--panel); padding: 24px; border-radius: 10px; width: 420px;
+  border: 1px solid var(--border);
+}
+.modal h2 { margin-top: 0; }
+
+.channels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.channel-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.channel-name { font-weight: 700; }
+.channel-ver { color: var(--muted); font-size: 20px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 16px 0 28px; }
+.stat-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 18px;
+}
+.stat-num { font-size: 28px; font-weight: 700; }
+.stat-label { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+.form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; margin-bottom: 16px;
+}
+
+.code-block {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; overflow: auto; font-size: 13px; white-space: pre-wrap;
+}
+
+.login-wrap {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at top, #1a2a44, var(--bg));
+}
+.login-card {
+  background: var(--panel); padding: 36px; border-radius: 12px; width: 360px;
+  border: 1px solid var(--border);
+}
+.login-card h1 { margin: 0 0 4px; font-size: 22px; }
+.login-card .hint { color: var(--muted); font-size: 12px; margin-top: 16px; }
+
+@media (max-width: 800px) {
+  .stats, .channels, .form-grid { grid-template-columns: 1fr; }
+}

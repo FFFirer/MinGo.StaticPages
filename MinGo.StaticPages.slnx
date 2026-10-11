@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MinGo.StaticPages.Application/MinGo.StaticPages.Application.csproj" />
+    <Project Path="src/MinGo.StaticPages.Domain/MinGo.StaticPages.Domain.csproj" />
+    <Project Path="src/MinGo.StaticPages.Infrastructure/MinGo.StaticPages.Infrastructure.csproj" />
+    <Project Path="src/MinGo.StaticPages.Web.Client/MinGo.StaticPages.Web.Client.csproj" />
+    <Project Path="src/MinGo.StaticPages.Web/MinGo.StaticPages.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MinGo.StaticPages.Tests/MinGo.StaticPages.Tests.csproj" />
+  </Folder>
+</Solution>

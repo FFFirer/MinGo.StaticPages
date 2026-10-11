@@ -1,0 +1,44 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+## Build / publish
+artifacts/
+publish/
+out/
+
+## App local data
+*.db
+*.db-shm
+*.db-wal
+storage-data/
+mingo-static.db*
+
+## Secrets / local config
+appsettings.*.local.json
+secrets.json
+.env
+.env.*
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Test / coverage
+TestResults/
+coverage/
+*.trx
+*.coverage
+
+## NuGet
+packages/
+*.nupkg
+
+## Logs
+*.log
+logs/

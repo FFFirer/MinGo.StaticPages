@@ -1,0 +1,138 @@
+@page "/"
+@page "/projects"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>项目</PageTitle>
+
+<div class="page-header">
+    <h1>项目</h1>
+    <button class="btn-primary" @onclick="() => showCreate = true">新建项目</button>
+</div>
+
+@if (loading)
+{
+    <p>加载中…</p>
+}
+else if (projects is null)
+{
+    <p>暂无数据</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>显示名</th>
+                <th>版本数</th>
+                <th>存储</th>
+                <th>production</th>
+                <th>preview</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in projects)
+            {
+                <tr>
+                    <td><a href="/projects/@p.Id">@p.Name</a></td>
+                    <td>@p.DisplayName</td>
+                    <td>@p.VersionCount</td>
+                    <td>@FormatSize(p.StorageBytes)</td>
+                    <td>@ChannelVersion(p, "production")</td>
+                    <td>@ChannelVersion(p, "preview")</td>
+                    <td>
+                        <button class="btn-danger" @onclick="() => DeleteAsync(p)">删除</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showCreate)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h2>新建项目</h2>
+            <div class="field">
+                <label>名称（小写字母数字 - _ .）</label>
+                <input class="form-control" @bind="newName" />
+            </div>
+            <div class="field">
+                <label>显示名</label>
+                <input class="form-control" @bind="newDisplay" />
+            </div>
+            <div class="field">
+                <label>描述</label>
+                <input class="form-control" @bind="newDesc" />
+            </div>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert">@error</div>
+            }
+            <div class="row">
+                <button class="btn-primary" @onclick="CreateAsync">创建</button>
+                <button class="btn" @onclick="() => showCreate = false">取消</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProjectDto>? projects;
+    private bool loading = true;
+    private bool showCreate;
+    private string newName = "";
+    private string? newDisplay, newDesc, error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects");
+        loading = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        error = null;
+        var resp = await Http.PostAsJsonAsync("/api/projects",
+            new CreateProjectRequest(newName, newDisplay, newDesc));
+        if (resp.IsSuccessStatusCode)
+        {
+            showCreate = false;
+            newName = "";
+            await LoadAsync();
+        }
+        else
+        {
+            error = await resp.Content.ReadAsStringAsync();
+        }
+    }
+
+    private async Task DeleteAsync(ProjectDto p)
+    {
+        if (!await JSConfirm($"删除项目 {p.Name}？")) return;
+        await Http.DeleteAsync($"/api/projects/{p.Id}");
+        await LoadAsync();
+    }
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    private async Task<bool> JSConfirm(string msg) => await JS.InvokeAsync<bool>("confirm", msg);
+
+    private static string FormatSize(long bytes) =>
+        bytes > 1_000_000_000 ? $"{bytes / 1e9:F2} GB" :
+        bytes > 1_000_000 ? $"{bytes / 1e6:F1} MB" :
+        bytes > 1_000 ? $"{bytes / 1e3:F1} KB" : $"{bytes} B";
+
+    private static string ChannelVersion(ProjectDto p, string name) =>
+        p.Channels.FirstOrDefault(c => c.Name == name)?.CurrentVersionNumber ?? "—";
+}

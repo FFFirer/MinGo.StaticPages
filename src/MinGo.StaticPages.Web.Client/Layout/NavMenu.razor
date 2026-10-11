@@ -1,0 +1,31 @@
+<nav class="top-nav">
+    <div class="brand"><a href="/dashboard">MinGo Static</a></div>
+    <div class="nav-links">
+        <a href="/dashboard">仪表盘</a>
+        <a href="/projects">项目</a>
+        <a href="/settings/storage">存储设置</a>
+        <a href="/resolve-demo">解析演示</a>
+    </div>
+    <div class="nav-user">
+        <AuthorizeView>
+            <Authorized>
+                <span>@context.User.Identity?.Name</span>
+                <button class="btn" @onclick="LogoutAsync">退出</button>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/login">登录</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</nav>
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private async Task LogoutAsync()
+    {
+        await Http.PostAsync("/api/auth/logout", null);
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}
