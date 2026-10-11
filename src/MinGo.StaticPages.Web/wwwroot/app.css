@@ -16,3 +16,26 @@
     width: 100%;
     max-width: 420px;
 }
+
+/* Theme switcher selected state (driven by wwwroot/js/theme.js) */
+[data-theme-toggle].is-active,
+[data-theme-toggle][aria-checked="true"] {
+    background-color: var(--bs-dropdown-link-active-bg);
+    color: var(--bs-dropdown-link-active-color);
+    font-weight: 600;
+}
+
+/* Theme toggle button: icon-only, shows current mode */
+.theme-toggle-icon {
+    display: none;
+    align-items: center;
+    line-height: 1;
+}
+
+.theme-toggle-icon.is-shown {
+    display: inline-flex;
+}
+
+[data-theme-label].dropdown-toggle::after {
+    margin-left: 0.35em;
+}

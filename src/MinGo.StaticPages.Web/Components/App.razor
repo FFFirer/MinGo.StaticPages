@@ -5,6 +5,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    @* Theme: localStorage['mingo-theme'] = light|dark|auto. Classic sync script (not type=module) so it runs before first paint. Keep resolve in sync with wwwroot/js/theme.js. *@
+    <script>
+        (function () {
+            try {
+                var raw = localStorage.getItem('mingo-theme');
+                var mode = (raw === 'light' || raw === 'dark' || raw === 'auto') ? raw : 'auto';
+                var effective = mode === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : mode;
+                document.documentElement.setAttribute('data-bs-theme', effective);
+                document.documentElement.setAttribute('data-theme-mode', mode);
+            } catch (e) {
+                document.documentElement.setAttribute('data-bs-theme', 'light');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["MinGo.StaticPages.Web.styles.css"]" />
@@ -17,6 +33,7 @@
     <Routes />
     <ReconnectModal />
     <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
+    <script type="module" src="@Assets["js/theme.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
