@@ -1,66 +1,39 @@
 @page "/login"
 @layout EmptyLayout
-@rendermode InteractiveServer
 @inject NavigationManager Nav
-@inject HttpClient Http
 
 <PageTitle>登录</PageTitle>
 
 <div class="login-wrap">
-    <div class="login-card">
-        <h1>MinGo Static Pages</h1>
-        <p class="muted">自托管版本化静态资源仓库</p>
-        <div class="field">
-            <label>用户名</label>
-            <input class="form-control" @bind="model.Username" />
+    <div class="card login-card shadow-sm">
+        <div class="card-body p-4">
+            <h1 class="h4 mb-1">MinGo Static Pages</h1>
+            <p class="text-body-secondary mb-4">自托管版本化静态资源仓库</p>
+
+            @if (HasError)
+            {
+                <div class="alert alert-danger py-2">用户名或密码错误</div>
+            }
+
+            <form action="/auth/login" method="post">
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+                <div class="mb-3">
+                    <label class="form-label" for="username">用户名</label>
+                    <input class="form-control" id="username" name="username" value="admin" autocomplete="username" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="password">密码</label>
+                    <input type="password" class="form-control" id="password" name="password" value="admin123" autocomplete="current-password" required />
+                </div>
+                <button class="btn btn-primary w-100" type="submit">登录</button>
+            </form>
+            <p class="text-body-secondary small mt-3 mb-0">默认管理员：admin / admin123</p>
         </div>
-        <div class="field">
-            <label>密码</label>
-            <input type="password" class="form-control" @bind="model.Password" />
-        </div>
-        @if (!string.IsNullOrEmpty(error))
-        {
-            <div class="alert">@error</div>
-        }
-        <button class="btn-primary" type="button" disabled="@busy" @onclick="LoginAsync">登录</button>
-        <p class="hint">默认管理员：admin / admin123</p>
     </div>
 </div>
 
 @code {
-    private LoginModel model = new();
-    private string? error;
-    private bool busy;
-
-    private async Task LoginAsync()
-    {
-        busy = true;
-        error = null;
-        try
-        {
-            var resp = await Http.PostAsJsonAsync("/api/auth/login", new LoginRequest(model.Username, model.Password));
-            if (resp.IsSuccessStatusCode)
-            {
-                Nav.NavigateTo("/projects", forceLoad: true);
-            }
-            else
-            {
-                error = "用户名或密码错误";
-            }
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-        }
-        finally
-        {
-            busy = false;
-        }
-    }
-
-    private sealed class LoginModel
-    {
-        public string Username { get; set; } = "admin";
-        public string Password { get; set; } = "admin123";
-    }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "ReturnUrl")] public string? ReturnUrl { get; set; }
+    private bool HasError => !string.IsNullOrEmpty(Error);
 }

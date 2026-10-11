@@ -1,5 +1,5 @@
 @page "/versions/{Id:guid}"
-@rendermode InteractiveAuto
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 @inject HttpClient Http
 
@@ -7,46 +7,68 @@
 
 @if (detail is null)
 {
-    <p>加载中…</p>
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+    else
+    {
+        <div class="text-body-secondary">加载中…</div>
+    }
 }
 else
 {
-    <div class="page-header">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
         <div>
-            <h1>@detail.Version.Number</h1>
-            <p class="muted">
-                项目 @detail.Version.ProjectId.ToString()[..8] ·
+            <h1 class="h3 mb-1">@detail.Version.Number</h1>
+            <p class="text-body-secondary mb-0">
                 @detail.Version.FileCount 文件 · @detail.Version.SizeBytes.ToString("N0") bytes ·
                 @detail.Version.CreatedBy · @detail.Version.CreatedAt.ToLocalTime()
             </p>
         </div>
-        <a class="btn" href="/projects/@detail.Version.ProjectId">返回项目</a>
+        <a class="btn btn-outline-secondary" href="/projects/@detail.Version.ProjectId">返回项目</a>
     </div>
 
-    <h2>文件清单</h2>
-    <table class="table">
-        <thead>
-            <tr><th>路径</th><th>大小</th><th>Content-Type</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var f in detail.Files)
-            {
-                <tr>
-                    <td>@f.RelativePath</td>
-                    <td>@f.SizeBytes.ToString("N0")</td>
-                    <td>@f.ContentType</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <h2 class="h5">文件清单</h2>
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th>路径</th>
+                        <th class="text-end">大小</th>
+                        <th>Content-Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in detail.Files)
+                    {
+                        <tr>
+                            <td><code>@f.RelativePath</code></td>
+                            <td class="text-end">@f.SizeBytes.ToString("N0")</td>
+                            <td class="text-body-secondary">@f.ContentType</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 }
 
 @code {
     [Parameter] public Guid Id { get; set; }
     private VersionDetailDto? detail;
+    private string? error;
 
     protected override async Task OnParametersSetAsync()
     {
-        detail = await Http.GetFromJsonAsync<VersionDetailDto>($"/api/versions/{Id}");
+        try
+        {
+            detail = await Http.GetFromJsonAsync<VersionDetailDto>($"/api/versions/{Id}");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
     }
 }

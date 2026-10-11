@@ -12,6 +12,16 @@ using MinGo.StaticPages.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Console logs: SimpleConsole, single line (replace default console provider)
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.SingleLine = true;
+    o.IncludeScopes = false;
+    o.TimestampFormat = "HH:mm:ss ";
+    o.UseUtcTimestamp = false;
+});
+
 builder.Services.Configure<FormOptions>(o =>
 {
     o.MultipartBodyLengthLimit = 512L * 1024 * 1024;
@@ -64,8 +74,34 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=mingo-static.db";
 builder.Services.AddMinGoInfrastructure(connectionString);
 
+// HttpClient BaseAddress follows the current request host (no hardcoded URL).
+// Prefer HttpContext (works for SSR/API), fall back to NavigationManager (interactive circuit).
+// Cookie/Authorization from the inbound request are forwarded so SSR API calls authenticate.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<MinGo.StaticPages.Web.Auth.UserAgentAuthForwardingHandler>();
 builder.Services.AddScoped(sp =>
-    new HttpClient { BaseAddress = new Uri(builder.Configuration["AppBaseUrl"] ?? "http://localhost:5218") });
+{
+    var httpContext = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    Uri baseUri;
+    if (httpContext is not null)
+    {
+        var req = httpContext.Request;
+        baseUri = new Uri($"{req.Scheme}://{req.Host}{req.PathBase}/");
+    }
+    else
+    {
+        var nav = sp.GetService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var uri = nav?.BaseUri;
+        if (!string.IsNullOrEmpty(uri))
+            baseUri = new Uri(uri);
+        else
+            baseUri = new Uri("http://localhost/");
+    }
+
+    var handler = sp.GetRequiredService<MinGo.StaticPages.Web.Auth.UserAgentAuthForwardingHandler>();
+    handler.InnerHandler = new HttpClientHandler { UseCookies = false };
+    return new HttpClient(handler) { BaseAddress = baseUri };
+});
 
 var app = builder.Build();
 
@@ -124,6 +160,42 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok", time = DateTimeOffs
     .WithTags("System");
 
 // ---------- Auth ----------
+// Browser form login: Set-Cookie is applied to the real browser request.
+app.MapPost("/auth/login", async (HttpContext http, AuthService auth) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var username = form["username"].ToString();
+    var password = form["password"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+
+    var user = await auth.ValidateCredentialsAsync(username, password);
+    if (user is null)
+        return Results.Redirect("/login?error=1&returnUrl=" + Uri.EscapeDataString(returnUrl));
+
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.Name, user.Username),
+        new(ClaimTypes.Role, user.Role),
+        new("auth_scheme", "cookie")
+    };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    await http.SignInAsync(
+        CookieAuthenticationDefaults.AuthenticationScheme,
+        new ClaimsPrincipal(identity));
+
+    var target = !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//")
+        ? returnUrl
+        : "/dashboard";
+    return Results.Redirect(target);
+}).AllowAnonymous().DisableAntiforgery();
+
+app.MapPost("/auth/logout", async (HttpContext http) =>
+{
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+}).AllowAnonymous().DisableAntiforgery();
+
+// JSON login (CI / API clients)
 app.MapPost("/api/auth/login", async (LoginRequest req, AuthService auth, HttpContext http) =>
 {
     var user = await auth.ValidateCredentialsAsync(req.Username, req.Password);

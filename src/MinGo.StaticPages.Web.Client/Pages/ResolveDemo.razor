@@ -1,30 +1,38 @@
 @page "/resolve-demo"
-@rendermode InteractiveAuto
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 @inject HttpClient Http
 
 <PageTitle>解析演示</PageTitle>
 
-<h1>Resolve API 演示</h1>
-<p class="muted">模拟数据面 YARP 调用解析接口。</p>
+<div class="mb-4">
+    <h1 class="h3 mb-1">Resolve API 演示</h1>
+    <p class="text-body-secondary mb-0">模拟数据面 YARP 调用解析接口。</p>
+</div>
 
-<div class="field">
-    <label>项目名</label>
-    <input class="form-control" @bind="projectName" />
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">项目名</label>
+                <input class="form-control" @bind="projectName" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">channel（空=production）</label>
+                <input class="form-control" @bind="channel" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">version（指定则优先）</label>
+                <input class="form-control" @bind="version" />
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" @onclick="ResolveAsync">解析</button>
+    </div>
 </div>
-<div class="field">
-    <label>channel（空=production）</label>
-    <input class="form-control" @bind="channel" />
-</div>
-<div class="field">
-    <label>version（指定则优先）</label>
-    <input class="form-control" @bind="version" />
-</div>
-<button class="btn-primary" @onclick="ResolveAsync">解析</button>
 
 @if (!string.IsNullOrEmpty(result))
 {
-    <pre class="code-block">@result</pre>
+    <pre class="card card-body bg-body-tertiary text-body small">@result</pre>
 }
 
 @code {

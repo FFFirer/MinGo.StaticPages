@@ -1,6 +1,22 @@
 @inherits LayoutComponentBase
-@layout NavMenu
 
-<main class="main-content">
-    @Body
-</main>
+<div class="min-vh-100 d-flex flex-column bg-body text-body">
+    <NavMenu />
+    <main class="flex-grow-1">
+        <div class="container-xl py-4">
+            @Body
+        </div>
+    </main>
+    <footer class="border-top py-3 text-body-secondary small">
+        <div class="container-xl d-flex justify-content-between">
+            <span>MinGo Static Pages</span>
+            <span>版本化静态资源仓库 · YARP Ready</span>
+        </div>
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet class="alert alert-danger position-fixed bottom-0 end-0 m-3 d-none">
+    发生未处理错误。
+    <a href="." class="alert-link">重新加载</a>
+    <button type="button" class="btn-close" onclick="document.getElementById('blazor-error-ui').classList.add('d-none')"></button>
+</div>

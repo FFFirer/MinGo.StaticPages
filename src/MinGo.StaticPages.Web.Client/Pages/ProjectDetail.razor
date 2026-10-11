@@ -1,138 +1,173 @@
 @page "/projects/{Id:guid}"
-@rendermode InteractiveAuto
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 @inject HttpClient Http
-@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>项目详情</PageTitle>
 
 @if (project is null)
 {
-    <p>加载中…</p>
+    <div class="placeholder-glow"><span class="placeholder col-8"></span></div>
 }
 else
 {
-    <div class="page-header">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
         <div>
-            <h1>@project.Name</h1>
-            <p class="muted">@project.DisplayName · @project.VersionCount 个版本 · @project.StorageBytes.ToString("N0") bytes</p>
+            <h1 class="h3 mb-1">@project.Name</h1>
+            <p class="text-body-secondary mb-0">
+                @project.DisplayName · @project.VersionCount 个版本 · @project.StorageBytes.ToString("N0") bytes
+            </p>
         </div>
-        <div class="row">
-            <button class="btn-primary" @onclick="() => showUpload = true">上传版本</button>
-            <button class="btn" @onclick="() => showRollback = true">回滚</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" @onclick="() => showUpload = true">上传版本</button>
+            <button class="btn btn-outline-secondary" @onclick="() => showRollback = true">回滚</button>
         </div>
     </div>
 
-    <h2>通道</h2>
-    <div class="channels">
+    <h2 class="h5">通道</h2>
+    <div class="row g-3 mb-4">
         @foreach (var ch in project.Channels)
         {
-            <div class="channel-card">
-                <div class="channel-name">@ch.Name</div>
-                <div class="channel-ver">@(ch.CurrentVersionNumber ?? "未发布")</div>
-                @if (versions is not null)
-                {
-                    <select class="form-control" @bind="publishVersionId">
-                        <option value="">选择版本…</option>
-                        @foreach (var v in versions.Where(v => v.Status == VersionStatusDto.Active))
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold">@ch.Name</span>
+                            <span class="badge text-bg-info">@(ch.CurrentVersionNumber ?? "未发布")</span>
+                        </div>
+                        @if (versions is not null)
                         {
-                            <option value="@v.Id">@v.Number</option>
+                            <div class="input-group mb-2">
+                                <select class="form-select" @bind="publishVersionId">
+                                    <option value="">选择版本…</option>
+                                    @foreach (var v in versions.Where(v => v.Status == VersionStatusDto.Active))
+                                    {
+                                        <option value="@v.Id">@v.Number</option>
+                                    }
+                                </select>
+                                <button class="btn btn-primary" @onclick="() => PublishAsync(ch.Name)">发布</button>
+                            </div>
                         }
-                    </select>
-                    <button class="btn-primary" @onclick="() => PublishAsync(ch.Name)">发布到 @ch.Name</button>
-                }
+                    </div>
+                </div>
             </div>
         }
     </div>
 
-    <h2>版本</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>版本号</th>
-                <th>状态</th>
-                <th>文件数</th>
-                <th>大小</th>
-                <th>上传者</th>
-                <th>时间</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (versions is not null)
-            {
-                @foreach (var v in versions)
-                {
+    <h2 class="h5">版本</h2>
+    <div class="card mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-group-divider">
                     <tr>
-                        <td><a href="/versions/@v.Id">@v.Number</a></td>
-                        <td>@v.Status</td>
-                        <td>@v.FileCount</td>
-                        <td>@v.SizeBytes.ToString("N0")</td>
-                        <td>@v.CreatedBy</td>
-                        <td>@v.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>
-                            @if (v.Status == VersionStatusDto.Active)
-                            {
-                                <button class="btn-danger" @onclick="() => DeleteVersionAsync(v)">删除</button>
-                            }
-                        </td>
+                        <th>版本号</th>
+                        <th>状态</th>
+                        <th class="text-end">文件数</th>
+                        <th class="text-end">大小</th>
+                        <th>上传者</th>
+                        <th>时间</th>
+                        <th class="text-end">操作</th>
                     </tr>
-                }
-            }
-        </tbody>
-    </table>
+                </thead>
+                <tbody>
+                    @if (versions is not null)
+                    {
+                        @foreach (var v in versions)
+                        {
+                            <tr>
+                                <td><a href="/versions/@v.Id">@v.Number</a></td>
+                                <td>
+                                    <span class="badge @(v.Status == VersionStatusDto.Active ? "text-bg-success" : "text-bg-secondary")">@v.Status</span>
+                                </td>
+                                <td class="text-end">@v.FileCount</td>
+                                <td class="text-end">@v.SizeBytes.ToString("N0")</td>
+                                <td class="text-body-secondary">@v.CreatedBy</td>
+                                <td class="text-body-secondary">@v.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                <td class="text-end">
+                                    @if (v.Status == VersionStatusDto.Active)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteVersionAsync(v)">删除</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-    <h2>发布历史</h2>
-    <table class="table">
-        <thead>
-            <tr><th>通道</th><th>动作</th><th>目标版本</th><th>操作人</th><th>时间</th></tr>
-        </thead>
-        <tbody>
-            @if (releases is not null)
-            {
-                @foreach (var r in releases)
-                {
+    <h2 class="h5">发布历史</h2>
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-group-divider">
                     <tr>
-                        <td>@r.ChannelName</td>
-                        <td>@r.Action</td>
-                        <td>@r.ToVersionId.ToString()[..8]</td>
-                        <td>@r.OperatorName</td>
-                        <td>@r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <th>通道</th>
+                        <th>动作</th>
+                        <th>目标版本</th>
+                        <th>操作人</th>
+                        <th>时间</th>
                     </tr>
-                }
-            }
-        </tbody>
-    </table>
+                </thead>
+                <tbody>
+                    @if (releases is not null)
+                    {
+                        @foreach (var r in releases)
+                        {
+                            <tr>
+                                <td>@r.ChannelName</td>
+                                <td>
+                                    <span class="badge @(r.Action == "publish" ? "text-bg-primary" : "text-bg-warning")">@r.Action</span>
+                                </td>
+                                <td><code>@r.ToVersionId.ToString()[..8]</code></td>
+                                <td class="text-body-secondary">@r.OperatorName</td>
+                                <td class="text-body-secondary">@r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 }
 
 @if (showUpload)
 {
-    <div class="modal-backdrop">
-        <div class="modal">
-            <h2>上传版本</h2>
-            <div class="field">
-                <label>版本号（可选）</label>
-                <input class="form-control" @bind="uploadNumber" />
-            </div>
-            <div class="field">
-                <label>Commit SHA</label>
-                <input class="form-control" @bind="uploadCommit" />
-            </div>
-            <div class="field">
-                <label>Zip 包</label>
-                <InputFile OnChange="OnFileSelected" />
-            </div>
-            @if (!string.IsNullOrEmpty(error))
-            {
-                <div class="alert">@error</div>
-            }
-            @if (!string.IsNullOrEmpty(uploadStatus))
-            {
-                <p>@uploadStatus</p>
-            }
-            <div class="row">
-                <button class="btn-primary" disabled="@(file is null || uploading)" @onclick="UploadAsync">上传</button>
-                <button class="btn" @onclick="() => showUpload = false">关闭</button>
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.35)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5">上传版本</h2>
+                    <button type="button" class="btn-close" @onclick="() => showUpload = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">版本号（可选）</label>
+                        <input class="form-control" @bind="uploadNumber" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Commit SHA</label>
+                        <input class="form-control" @bind="uploadCommit" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Zip 包</label>
+                        <InputFile class="form-control" OnChange="OnFileSelected" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="alert alert-danger py-2">@error</div>
+                    }
+                    @if (!string.IsNullOrEmpty(uploadStatus))
+                    {
+                        <div class="alert alert-info py-2">@uploadStatus</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => showUpload = false">关闭</button>
+                    <button class="btn btn-primary" disabled="@(file is null || uploading)" @onclick="UploadAsync">上传</button>
+                </div>
             </div>
         </div>
     </div>
@@ -140,17 +175,24 @@ else
 
 @if (showRollback)
 {
-    <div class="modal-backdrop">
-        <div class="modal">
-            <h2>回滚 production</h2>
-            <p>将 production 指回上一个发布版本。</p>
-            @if (!string.IsNullOrEmpty(error))
-            {
-                <div class="alert">@error</div>
-            }
-            <div class="row">
-                <button class="btn-primary" @onclick="RollbackAsync">确认回滚</button>
-                <button class="btn" @onclick="() => showRollback = false">取消</button>
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.35)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5">回滚 production</h2>
+                    <button type="button" class="btn-close" @onclick="() => showRollback = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">将 production 指回上一个发布版本。</p>
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="alert alert-danger py-2">@error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => showRollback = false">取消</button>
+                    <button class="btn btn-danger" @onclick="RollbackAsync">确认回滚</button>
+                </div>
             </div>
         </div>
     </div>
@@ -166,24 +208,22 @@ else
     private string? error;
     private string publishVersionId = "";
     private IBrowserFile? file;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await LoadAsync();
-    }
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        project = await Http.GetFromJsonAsync<ProjectDto>($"/api/projects/{Id}");
-        versions = await Http.GetFromJsonAsync<List<VersionDto>>($"/api/projects/{Id}/versions");
-        releases = await Http.GetFromJsonAsync<List<ReleaseDto>>($"/api/projects/{Id}/releases");
+        try
+        {
+            project = await Http.GetFromJsonAsync<ProjectDto>($"/api/projects/{Id}");
+            versions = await Http.GetFromJsonAsync<List<VersionDto>>($"/api/projects/{Id}/versions");
+            releases = await Http.GetFromJsonAsync<List<ReleaseDto>>($"/api/projects/{Id}/releases");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        StateHasChanged();
     }
 
-    private void OnFileSelected(InputFileChangeEventArgs e)
-    {
-        file = e.File;
-    }
+    private void OnFileSelected(InputFileChangeEventArgs e) => file = e.File;
 
     private async Task UploadAsync()
     {
@@ -194,7 +234,7 @@ else
         try
         {
             using var content = new MultipartFormDataContent();
-            using var stream = file.OpenReadStream(maxAllowedSize: 256L * 1024 * 1024);
+            await using var stream = file.OpenReadStream(maxAllowedSize: 256L * 1024 * 1024);
             var sc = new StreamContent(stream);
             sc.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
             content.Add(sc, "file", file.Name);

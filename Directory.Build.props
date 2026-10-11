@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    Pin packages with known advisories only where they are used.
+    Never add SQLite to the Blazor WASM client (native wasm assets).
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MinGo.StaticPages.Infrastructure' or '$(MSBuildProjectName)' == 'MinGo.StaticPages.Tests'">
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MinGo.StaticPages.Web' or '$(MSBuildProjectName)' == 'MinGo.StaticPages.Tests'">
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+  </ItemGroup>
+</Project>

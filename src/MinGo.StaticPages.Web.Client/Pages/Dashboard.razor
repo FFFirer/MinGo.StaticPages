@@ -1,51 +1,69 @@
 @page "/dashboard"
-@rendermode InteractiveAuto
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 @inject HttpClient Http
-@inject NavigationManager Nav
 
 <PageTitle>仪表盘</PageTitle>
 
-<div class="page-header">
-    <h1>仪表盘</h1>
-    <a class="btn-primary" href="/projects">管理项目</a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">仪表盘</h1>
+    <a class="btn btn-primary" href="/projects">管理项目</a>
 </div>
 
 @if (projects is null)
 {
-    <p>加载中…</p>
+    <div class="placeholder-glow"><span class="placeholder col-6"></span></div>
 }
 else
 {
-    <div class="stats">
-        <div class="stat-card">
-            <div class="stat-num">@projects.Count</div>
-            <div class="stat-label">项目</div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">项目</div>
+                    <div class="fs-2 fw-semibold">@projects.Count</div>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-num">@projects.Sum(p => p.VersionCount)</div>
-            <div class="stat-label">活跃版本</div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">活跃版本</div>
+                    <div class="fs-2 fw-semibold">@projects.Sum(p => p.VersionCount)</div>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-num">@projects.Sum(p => p.StorageBytes).ToString("N0")</div>
-            <div class="stat-label">存储字节</div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">存储字节</div>
+                    <div class="fs-2 fw-semibold">@projects.Sum(p => p.StorageBytes).ToString("N0")</div>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-num">@projects.Count(p => p.Channels.Any(c => c.CurrentVersionId != null))</div>
-            <div class="stat-label">已发布项目</div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">已发布项目</div>
+                    <div class="fs-2 fw-semibold">@projects.Count(p => p.Channels.Any(c => c.CurrentVersionId != null))</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <h2>快捷入口</h2>
-    <div class="row">
-        <a class="btn" href="/projects">项目列表</a>
-        <a class="btn" href="/settings/storage">存储设置</a>
-        <a class="btn" href="/resolve-demo">解析演示</a>
+    <h2 class="h5">快捷入口</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary" href="/projects">项目列表</a>
+        <a class="btn btn-outline-secondary" href="/settings/storage">存储设置</a>
+        <a class="btn btn-outline-secondary" href="/resolve-demo">解析演示</a>
     </div>
 }
 
 @code {
     private List<ProjectDto>? projects;
     protected override async Task OnInitializedAsync()
-        => projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects");
+    {
+        try { projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects"); }
+        catch { projects = []; }
+    }
 }
