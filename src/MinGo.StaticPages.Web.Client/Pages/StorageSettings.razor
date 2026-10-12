@@ -3,184 +3,352 @@
 @attribute [Authorize]
 @inject HttpClient Http
 
-<PageTitle>存储设置</PageTitle>
+<PageTitle>存储</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">存储设置</h1>
-    <button class="btn btn-outline-secondary" @onclick="TestAsync">连通性测试</button>
+    <h1 class="h3 mb-0">存储</h1>
+    <button class="btn btn-primary" @onclick="() => showCreate = true">新建实例</button>
 </div>
 
-@if (form is null)
+@if (!string.IsNullOrEmpty(message))
 {
-    @if (!string.IsNullOrEmpty(message))
-    {
-        <div class="alert alert-danger">@message</div>
-    }
-    else
-    {
-        <div class="text-body-secondary">正在加载设置…</div>
-    }
+    <div class="alert @(messageOk ? "alert-success" : "alert-danger") alert-dismissible">
+        @message
+        <button type="button" class="btn-close" @onclick="() => message = null"></button>
+    </div>
+}
+
+<h2 class="h5">存储实例</h2>
+@if (instances is null)
+{
+    <div class="text-body-secondary mb-4">加载中…</div>
+}
+else if (instances.Count == 0)
+{
+    <div class="card mb-4"><div class="card-body text-body-secondary">暂无实例。首启会种子默认 Local 实例。</div></div>
 }
 else
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <h2 class="h6 text-body-secondary">对象存储</h2>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Provider</label>
-                    <select class="form-select" @bind="form.Provider">
-                        <option value="Local">Local</option>
-                        <option value="S3">S3</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Service URL（S3）</label>
-                    <input class="form-control" @bind="form.ServiceUrl" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Region</label>
-                    <input class="form-control" @bind="form.Region" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Access Key</label>
-                    <input class="form-control" @bind="form.AccessKey" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Secret Key（留空不改）</label>
-                    <input type="password" class="form-control" @bind="secretKey" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Bucket</label>
-                    <input class="form-control" @bind="form.Bucket" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Prefix</label>
-                    <input class="form-control" @bind="form.Prefix" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Local Root</label>
-                    <input class="form-control" @bind="form.LocalRoot" />
-                </div>
-                <div class="col-md-6">
-                    <div class="form-check form-switch mt-4">
-                        <input class="form-check-input" type="checkbox" id="forcePath" @bind="form.ForcePathStyle" />
-                        <label class="form-check-label" for="forcePath">Force Path Style</label>
-                    </div>
-                </div>
-            </div>
+    <div class="card mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th>名称</th>
+                        <th>Kind</th>
+                        <th>Root / Endpoint</th>
+                        <th>Prefix</th>
+                        <th>Bucket</th>
+                        <th class="text-end">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in instances)
+                    {
+                        <tr>
+                            <td><code>@i.Name</code></td>
+                            <td><span class="badge text-bg-info">@i.Kind</span></td>
+                            <td class="small text-body-secondary">@(i.Kind == "local" ? i.LocalRoot : i.ServiceUrl)</td>
+                            <td><code>@(string.IsNullOrEmpty(i.Prefix) ? "—" : i.Prefix)</code></td>
+                            <td>@i.Bucket</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => TestInstanceAsync(i.Id)">测试</button>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => BeginEdit(i)">编辑</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteInstanceAsync(i)">删除</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     </div>
+}
 
-    <div class="card mb-3">
+<h2 class="h5">全局策略</h2>
+@if (policy is not null)
+{
+    <div class="card mb-4">
         <div class="card-body">
-            <h2 class="h6 text-body-secondary">上传限制与缓存</h2>
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">Max Package Bytes</label>
-                    <input type="number" class="form-control" @bind="form.MaxPackageBytes" />
+                    <input type="number" class="form-control" @bind="policy.MaxPackageBytes" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Max File Count</label>
-                    <input type="number" class="form-control" @bind="form.MaxFileCount" />
+                    <input type="number" class="form-control" @bind="policy.MaxFileCount" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Max Single File Bytes</label>
-                    <input type="number" class="form-control" @bind="form.MaxSingleFileBytes" />
+                    <input type="number" class="form-control" @bind="policy.MaxSingleFileBytes" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">已发布缓存秒数</label>
-                    <input type="number" class="form-control" @bind="form.PublishedCacheSeconds" />
+                    <input type="number" class="form-control" @bind="policy.PublishedCacheSeconds" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">按版本缓存秒数</label>
-                    <input type="number" class="form-control" @bind="form.VersionCacheSeconds" />
+                    <input type="number" class="form-control" @bind="policy.VersionCacheSeconds" />
                 </div>
                 <div class="col-md-6 d-flex align-items-end">
                     <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="resolveAuth" @bind="form.ResolveRequireAuth" />
+                        <input class="form-check-input" type="checkbox" id="resolveAuth" @bind="policy.ResolveRequireAuth" />
                         <label class="form-check-label" for="resolveAuth">Resolve 需要鉴权</label>
                     </div>
                 </div>
             </div>
+            <button class="btn btn-primary mt-3" @onclick="SavePolicyAsync">保存策略</button>
         </div>
     </div>
+}
 
-    @if (!string.IsNullOrEmpty(message))
-    {
-        <div class="alert alert-info py-2">@message</div>
-    }
-
-    <button class="btn btn-primary" @onclick="SaveAsync">保存</button>
+@if (showCreate || editId is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.35)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5">@(editId is null ? "新建存储实例" : "编辑存储实例")</h2>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">名称</label>
+                            <input class="form-control" @bind="form.Name" disabled="@(editId is not null)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Kind</label>
+                            <select class="form-select" @bind="form.Kind" disabled="@(editId is not null)">
+                                <option value="local">local</option>
+                                <option value="s3">s3</option>
+                            </select>
+                        </div>
+                        @if (form.Kind == "local")
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label">Local Root</label>
+                                <input class="form-control" @bind="form.LocalRoot" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label">Service URL</label>
+                                <input class="form-control" @bind="form.ServiceUrl" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Region</label>
+                                <input class="form-control" @bind="form.Region" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Bucket</label>
+                                <input class="form-control" @bind="form.Bucket" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Access Key</label>
+                                <input class="form-control" @bind="form.AccessKey" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Secret Key（留空不改）</label>
+                                <input type="password" class="form-control" @bind="form.SecretKey" />
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="fps" @bind="form.ForcePathStyle" />
+                                    <label class="form-check-label" for="fps">Force Path Style</label>
+                                </div>
+                            </div>
+                        }
+                        <div class="col-md-6">
+                            <label class="form-label">Prefix（Local / S3 同构键前缀）</label>
+                            <input class="form-control" @bind="form.Prefix" />
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="alert alert-danger py-2 mt-3">@error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="CloseModal">取消</button>
+                    <button class="btn btn-primary" @onclick="SaveInstanceAsync">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
-    private StorageForm? form;
-    private string secretKey = "";
+    private List<StorageInstanceDto>? instances;
+    private PolicyForm? policy;
+    private bool showCreate;
+    private Guid? editId;
+    private InstanceForm form = new();
     private string? message;
+    private bool messageOk;
+    private string? error;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         try
         {
-            var dto = await Http.GetFromJsonAsync<StorageSettingsDto>("/api/settings/storage");
-            if (dto is not null)
+            instances = await Http.GetFromJsonAsync<List<StorageInstanceDto>>("/api/storage-instances");
+            var p = await Http.GetFromJsonAsync<StorageSettingsDto>("/api/settings/storage");
+            if (p is not null)
             {
-                form = new StorageForm
+                policy = new PolicyForm
                 {
-                    Provider = dto.Provider,
-                    ServiceUrl = dto.ServiceUrl,
-                    Region = dto.Region,
-                    AccessKey = dto.AccessKey,
-                    Bucket = dto.Bucket,
-                    Prefix = dto.Prefix,
-                    ForcePathStyle = dto.ForcePathStyle,
-                    LocalRoot = dto.LocalRoot,
-                    MaxPackageBytes = dto.MaxPackageBytes,
-                    MaxFileCount = dto.MaxFileCount,
-                    MaxSingleFileBytes = dto.MaxSingleFileBytes,
-                    ResolveRequireAuth = dto.ResolveRequireAuth,
-                    PublishedCacheSeconds = dto.PublishedCacheSeconds,
-                    VersionCacheSeconds = dto.VersionCacheSeconds
+                    MaxPackageBytes = p.MaxPackageBytes,
+                    MaxFileCount = p.MaxFileCount,
+                    MaxSingleFileBytes = p.MaxSingleFileBytes,
+                    ResolveRequireAuth = p.ResolveRequireAuth,
+                    PublishedCacheSeconds = p.PublishedCacheSeconds,
+                    VersionCacheSeconds = p.VersionCacheSeconds
                 };
             }
         }
         catch (Exception ex)
         {
-            message = "加载失败: " + ex.Message;
+            message = ex.Message;
+            messageOk = false;
         }
     }
 
-    private async Task SaveAsync()
+    private void BeginEdit(StorageInstanceDto i)
     {
-        if (form is null) return;
-        var req = new UpdateStorageSettingsRequest(
-            form.Provider, form.ServiceUrl, form.Region, form.AccessKey,
-            string.IsNullOrEmpty(secretKey) ? null : secretKey,
-            form.Bucket, form.Prefix, form.ForcePathStyle, form.LocalRoot,
-            form.MaxPackageBytes, form.MaxFileCount, form.MaxSingleFileBytes,
-            form.ResolveRequireAuth, form.PublishedCacheSeconds, form.VersionCacheSeconds);
-
-        var resp = await Http.PutAsJsonAsync("/api/settings/storage", req);
-        message = resp.IsSuccessStatusCode ? "已保存" : await resp.Content.ReadAsStringAsync();
+        editId = i.Id;
+        form = new InstanceForm
+        {
+            Name = i.Name,
+            Kind = i.Kind,
+            LocalRoot = i.LocalRoot ?? "storage-data",
+            Prefix = i.Prefix,
+            ServiceUrl = i.ServiceUrl,
+            Region = i.Region,
+            AccessKey = i.AccessKey,
+            Bucket = i.Bucket,
+            ForcePathStyle = i.ForcePathStyle
+        };
     }
 
-    private async Task TestAsync()
+    private void CloseModal()
     {
-        var resp = await Http.PostAsync("/api/settings/storage/test", null);
-        message = await resp.Content.ReadAsStringAsync();
+        showCreate = false;
+        editId = null;
+        error = null;
+        form = new InstanceForm();
     }
 
-    private sealed class StorageForm
+    private async Task SaveInstanceAsync()
     {
-        public string Provider { get; set; } = "Local";
+        error = null;
+        try
+        {
+            HttpResponseMessage resp;
+            if (editId is Guid id)
+            {
+                resp = await Http.PutAsJsonAsync($"/api/storage-instances/{id}", new UpdateStorageInstanceRequest(
+                    form.Name, form.LocalRoot, form.Prefix, form.ServiceUrl, form.Region,
+                    form.AccessKey, form.SecretKey, form.Bucket, form.ForcePathStyle));
+            }
+            else
+            {
+                resp = await Http.PostAsJsonAsync("/api/storage-instances", new CreateStorageInstanceRequest(
+                    form.Name, form.Kind, form.LocalRoot, form.Prefix, form.ServiceUrl, form.Region,
+                    form.AccessKey, form.SecretKey, form.Bucket, form.ForcePathStyle));
+            }
+            if (!resp.IsSuccessStatusCode)
+            {
+                error = await ReadErrorAsync(resp);
+                return;
+            }
+            CloseModal();
+            message = "已保存存储实例。";
+            messageOk = true;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task DeleteInstanceAsync(StorageInstanceDto i)
+    {
+        var resp = await Http.DeleteAsync($"/api/storage-instances/{i.Id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            message = $"已删除 {i.Name}。";
+            messageOk = true;
+        }
+        else
+        {
+            message = await ReadErrorAsync(resp);
+            messageOk = false;
+        }
+        await LoadAsync();
+    }
+
+    private async Task TestInstanceAsync(Guid id)
+    {
+        var resp = await Http.PostAsync($"/api/storage-instances/{id}/test", null);
+        if (resp.IsSuccessStatusCode)
+        {
+            message = "连通性测试通过。";
+            messageOk = true;
+        }
+        else
+        {
+            message = "连通性测试失败。";
+            messageOk = false;
+        }
+    }
+
+    private async Task SavePolicyAsync()
+    {
+        if (policy is null) return;
+        var resp = await Http.PutAsJsonAsync("/api/settings/storage", new UpdateStorageSettingsRequest(
+            policy.MaxPackageBytes, policy.MaxFileCount, policy.MaxSingleFileBytes,
+            policy.ResolveRequireAuth, policy.PublishedCacheSeconds, policy.VersionCacheSeconds));
+        message = resp.IsSuccessStatusCode ? "策略已保存。" : await ReadErrorAsync(resp);
+        messageOk = resp.IsSuccessStatusCode;
+    }
+
+    private static async Task<string> ReadErrorAsync(HttpResponseMessage resp)
+    {
+        try
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            return string.IsNullOrWhiteSpace(body) ? $"HTTP {(int)resp.StatusCode}" : body;
+        }
+        catch
+        {
+            return $"HTTP {(int)resp.StatusCode}";
+        }
+    }
+
+    private sealed class InstanceForm
+    {
+        public string Name { get; set; } = "";
+        public string Kind { get; set; } = "local";
+        public string LocalRoot { get; set; } = "storage-data";
+        public string Prefix { get; set; } = "";
         public string? ServiceUrl { get; set; }
         public string Region { get; set; } = "us-east-1";
         public string? AccessKey { get; set; }
+        public string? SecretKey { get; set; }
         public string Bucket { get; set; } = "static-pages";
-        public string Prefix { get; set; } = "";
         public bool ForcePathStyle { get; set; } = true;
-        public string LocalRoot { get; set; } = "storage-data";
+    }
+
+    private sealed class PolicyForm
+    {
         public int MaxPackageBytes { get; set; }
         public int MaxFileCount { get; set; }
         public int MaxSingleFileBytes { get; set; }

@@ -30,16 +30,32 @@
     </div>
 </div>
 
+@if (!string.IsNullOrEmpty(statusLine))
+{
+    <div class="card mb-2">
+        <div class="card-body py-2">
+            <span class="badge @(ok ? "text-bg-success" : "text-bg-danger") me-2">@statusLine</span>
+        </div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(result))
 {
-    <pre class="card card-body bg-body-tertiary text-body small">@result</pre>
+    <pre class="card card-body bg-body-tertiary text-body small mb-0 overflow-auto" style="max-height: 28rem">@result</pre>
 }
 
 @code {
     private string projectName = "docs";
     private string channel = "";
     private string version = "";
+    private string? statusLine;
+    private bool ok;
     private string? result;
+
+    private static readonly System.Text.Json.JsonSerializerOptions PrettyOptions = new()
+    {
+        WriteIndented = true
+    };
 
     private async Task ResolveAsync()
     {
@@ -50,6 +66,24 @@
         if (qs.Count > 0) url += "?" + string.Join("&", qs);
 
         var resp = await Http.GetAsync(url);
-        result = $"{(int)resp.StatusCode} {resp.ReasonPhrase}\n{await resp.Content.ReadAsStringAsync()}";
+        ok = resp.IsSuccessStatusCode;
+        statusLine = $"{(int)resp.StatusCode} {resp.ReasonPhrase}";
+        result = FormatJson(await resp.Content.ReadAsStringAsync());
+    }
+
+    private static string FormatJson(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return body;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            return System.Text.Json.JsonSerializer.Serialize(doc.RootElement, PrettyOptions);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return body;
+        }
     }
 }

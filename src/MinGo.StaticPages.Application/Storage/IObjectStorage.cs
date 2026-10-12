@@ -14,10 +14,9 @@ public interface IObjectStorage
     Task<string?> GetPresignedUrlAsync(string key, TimeSpan expiry, CancellationToken ct = default);
 }
 
-public sealed record StorageBackendInfo(
-    string Provider,
-    string? Bucket,
-    string Prefix,
-    string? Endpoint,
-    bool ForcePathStyle,
-    string? LocalRoot);
+public interface IStorageFactory
+{
+    Task<IObjectStorage> ForInstanceAsync(Guid instanceId, CancellationToken ct = default);
+    Task<IObjectStorage> ForProjectAsync(Guid projectId, CancellationToken ct = default);
+    Task<IObjectStorage> ForInstanceAsync(Domain.Entities.StorageInstance instance, CancellationToken ct = default);
+}

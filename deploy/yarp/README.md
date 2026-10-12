@@ -92,6 +92,8 @@ onRequest(req):
 
 ## 5. Local provider
 
-`storage.provider=local` 时 YARP 无法直读磁盘。开发环境可：
-- 使用 MinIO（推荐，与生产路径一致）
-- 或自行将 `localRoot` 挂载给数据面
+`storage.provider=local` 时 `storage.endpoint` 为 **控制面 Local FileProvider 基址**（如 `/s/{project}`），可直接 GET；不要求 YARP 读盘。生产仍推荐 S3 兼容存储。
+
+多存储实例：每个项目终身绑定一个实例；resolve 的 `storage` 来自该项目实例（含 `instance` 名）。Local 实例的 `LocalRoot`+`Prefix` 与 S3 的 `Prefix` 同构。
+
+按版本读：`GET /s/{project}/_v/{version}/{**path}`。

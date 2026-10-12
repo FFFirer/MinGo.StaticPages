@@ -3,9 +3,7 @@
 ## Purpose
 
 Read-only resolve contract for external YARP data planes (published or by version).
-
 ## Requirements
-
 ### Requirement: Resolve published channel
 The system SHALL expose `GET /api/resolve/{projectName}` returning storage metadata for the project's current published version (default channel `production`).
 
@@ -36,15 +34,19 @@ The system SHALL accept `?channel=preview` to resolve a non-default channel poin
 - **THEN** the response reflects version `v3` and `access=published` for channel `preview`
 
 ### Requirement: Storage payload for data plane
-The resolve response SHALL include enough information for an external YARP to fetch objects directly: provider kind, bucket or local marker, object key prefix, endpoint/base URL when applicable, and force-path-style flag. It SHALL NOT require the data plane to call other management APIs.
+The resolve response SHALL include enough information for an external data plane to fetch objects directly: provider kind, bucket or local marker, object key prefix, endpoint/base URL from the project's bound storage instance, force-path-style flag, and the instance name for observability. It SHALL NOT require the data plane to call other management APIs and SHALL NOT include storage secrets. The version `prefix` in the response SHALL remain the logical version file prefix (`projects/{pid}/versions/{vid}/files`).
 
 #### Scenario: S3 provider payload
-- **WHEN** active storage is S3-compatible
-- **THEN** resolve returns `storage.provider=s3`, bucket, prefix, endpoint, and `force_path_style` as configured
+- **WHEN** the project is bound to an `s3` storage instance
+- **THEN** resolve returns `storage.provider=s3`, that instance's bucket, version prefix, `endpoint` equal to the instance service URL, `force_path_style`, and instance identity
 
 #### Scenario: Local provider payload
-- **WHEN** active storage is local
-- **THEN** resolve returns `storage.provider=local` and the relative prefix so data plane tooling can detect non-S3 mode
+- **WHEN** the project is bound to a `local` storage instance
+- **THEN** resolve returns `storage.provider=local`, the version logical prefix, and `endpoint` equal to the control-plane Local file-provider base URL for that project (not the server filesystem root)
+
+#### Scenario: Per-project endpoints differ by instance
+- **WHEN** project `a` is bound to instance `minio-a` and project `b` is bound to instance `local-dev`
+- **THEN** resolve for `a` and `b` returns different `storage.endpoint` values matching each instance
 
 ### Requirement: SPA and cache hints
 The resolve response SHALL include SPA fallback settings and cache hints so the data plane can serve SPA routes and set Cache-Control consistently.
@@ -67,3 +69,4 @@ The system SHALL support optional authentication for resolve endpoints via confi
 #### Scenario: Optional auth disabled
 - **WHEN** resolve auth is not required
 - **THEN** a valid resolve request succeeds without credentials
+

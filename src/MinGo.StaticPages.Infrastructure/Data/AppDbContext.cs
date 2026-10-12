@@ -15,6 +15,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<User> Users => Set<User>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<StorageSettings> StorageSettings => Set<StorageSettings>();
+    public DbSet<StorageInstance> StorageInstances => Set<StorageInstance>();
 
     IQueryable<Project> IAppDbContext.Projects => Projects;
     IQueryable<VersionRecord> IAppDbContext.Versions => Versions;
@@ -24,6 +25,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     IQueryable<User> IAppDbContext.Users => Users;
     IQueryable<ApiKey> IAppDbContext.ApiKeys => ApiKeys;
     IQueryable<StorageSettings> IAppDbContext.StorageSettings => StorageSettings;
+    IQueryable<StorageInstance> IAppDbContext.StorageInstances => StorageInstances;
 
     void IAppDbContext.Add<T>(T entity) => Set<T>().Add(entity);
     void IAppDbContext.Remove<T>(T entity) => Set<T>().Remove(entity);
@@ -35,9 +37,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(64).IsRequired();
             e.HasIndex(x => x.Name).IsUnique();
+            e.HasOne(x => x.StorageInstance).WithMany().HasForeignKey(x => x.StorageInstanceId);
             e.HasMany(x => x.Versions).WithOne(x => x.Project!).HasForeignKey(x => x.ProjectId);
             e.HasMany(x => x.Channels).WithOne(x => x.Project!).HasForeignKey(x => x.ProjectId);
             e.HasMany(x => x.Releases).WithOne(x => x.Project!).HasForeignKey(x => x.ProjectId);
+        });
+
+        modelBuilder.Entity<StorageInstance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.LocalRoot).HasMaxLength(1024);
+            e.Property(x => x.Prefix).HasMaxLength(256);
+            e.Property(x => x.ServiceUrl).HasMaxLength(512);
+            e.Property(x => x.Bucket).HasMaxLength(256);
         });
 
         modelBuilder.Entity<VersionRecord>(e =>
@@ -86,5 +100,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasKey(x => x.Id);
         });
+
+        // Store all DateTimeOffset properties as UTC Unix milliseconds (long).
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset))
+                    property.SetValueConverter(DateTimeConverters.ToUnixMs);
+                else if (property.ClrType == typeof(DateTimeOffset?))
+                    property.SetValueConverter(DateTimeConverters.ToUnixMsNullable);
+            }
+        }
     }
 }

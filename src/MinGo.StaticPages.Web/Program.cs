@@ -9,6 +9,7 @@ using MinGo.StaticPages.Application.Services;
 using MinGo.StaticPages.Domain.Entities;
 using MinGo.StaticPages.Infrastructure;
 using MinGo.StaticPages.Infrastructure.Data;
+using MinGo.StaticPages.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -109,7 +110,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await DatabaseBootstrapper.InitializeAsync(db);
     var hasher = scope.ServiceProvider.GetRequiredService<MinGo.StaticPages.Application.Abstractions.IPasswordHasher>();
     if (!await db.Users.AnyAsync())
     {
@@ -123,14 +124,35 @@ using (var scope = app.Services.CreateScope())
     }
     if (!await db.StorageSettings.AnyAsync())
     {
-        db.StorageSettings.Add(new StorageSettings
+        db.StorageSettings.Add(new StorageSettings());
+        await db.SaveChangesAsync();
+    }
+
+    // Seed default Local storage instance when none exist (deletable; not a privileged singleton).
+    if (!await db.StorageInstances.AnyAsync())
+    {
+        db.StorageInstances.Add(new StorageInstance
         {
-            Provider = StorageProviderKind.Local,
-            LocalRoot = Path.GetFullPath("storage-data"),
+            Name = "local",
+            Kind = StorageInstanceKind.Local,
+            LocalRoot = "storage-data",
+            Prefix = string.Empty,
             Bucket = "static-pages",
             Region = "us-east-1",
             ForcePathStyle = true
         });
+        await db.SaveChangesAsync();
+    }
+
+    // Migrate legacy projects with empty StorageInstanceId to the first/seed instance.
+    var orphanProjects = await db.Projects
+        .Where(p => p.StorageInstanceId == Guid.Empty)
+        .ToListAsync();
+    if (orphanProjects.Count > 0)
+    {
+        var fallback = await db.StorageInstances.OrderBy(i => i.CreatedAt).FirstAsync();
+        foreach (var p in orphanProjects)
+            p.StorageInstanceId = fallback.Id;
         await db.SaveChangesAsync();
     }
 }
@@ -427,21 +449,94 @@ app.MapGet("/api/resolve/{projectName}", async (
     return result is null ? Results.NotFound(new { error = "not_published_or_missing" }) : Results.Ok(result);
 }).WithTags("Resolve").AllowAnonymous();
 
-// ---------- Storage settings ----------
+// ---------- Local FileProvider (Local instances only) ----------
+app.MapGet("/s/{projectName}/{**filePath}", async (
+    string projectName, string? filePath, string? channel,
+    HttpContext http, MinGo.StaticPages.Infrastructure.Data.AppDbContext db, CancellationToken ct) =>
+    await LocalFileServe.ServeAsync(http, db, projectName, channel, filePath, byVersion: false, ct)
+).WithTags("LocalStatic").AllowAnonymous();
+
+app.MapGet("/s/{projectName}/_v/{version}/{**filePath}", async (
+    string projectName, string version, string? filePath,
+    HttpContext http, MinGo.StaticPages.Infrastructure.Data.AppDbContext db, CancellationToken ct) =>
+    await LocalFileServe.ServeAsync(http, db, projectName, version, filePath, byVersion: true, ct)
+).WithTags("LocalStatic").AllowAnonymous();
+
+// ---------- Storage instances ----------
+app.MapGet("/api/storage-instances", async (StorageInstanceService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    return Results.Ok(await svc.ListAsync());
+}).WithTags("StorageInstances").RequireAuthorization();
+
+app.MapGet("/api/storage-instances/{id:guid}", async (Guid id, StorageInstanceService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    var dto = await svc.GetAsync(id);
+    return dto is null ? Results.NotFound() : Results.Ok(dto);
+}).WithTags("StorageInstances").RequireAuthorization();
+
+app.MapPost("/api/storage-instances", async (CreateStorageInstanceRequest req, StorageInstanceService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    try
+    {
+        var dto = await svc.CreateAsync(req);
+        return Results.Created($"/api/storage-instances/{dto.Id}", dto);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 400);
+    }
+}).WithTags("StorageInstances").RequireAuthorization();
+
+app.MapPut("/api/storage-instances/{id:guid}", async (Guid id, UpdateStorageInstanceRequest req, StorageInstanceService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    try
+    {
+        return Results.Ok(await svc.UpdateAsync(id, req));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 400);
+    }
+}).WithTags("StorageInstances").RequireAuthorization();
+
+app.MapDelete("/api/storage-instances/{id:guid}", async (Guid id, StorageInstanceService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    try
+    {
+        await svc.DeleteAsync(id);
+        return Results.NoContent();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 409);
+    }
+}).WithTags("StorageInstances").RequireAuthorization();
+
+app.MapPost("/api/storage-instances/{id:guid}/test", async (Guid id, MinGo.StaticPages.Application.Abstractions.IStorageSettingsService svc, ClaimsPrincipal user) =>
+{
+    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
+        return Results.Forbid();
+    var ok = await svc.TestConnectivityAsync(id);
+    return Results.Ok(new { ok });
+}).WithTags("StorageInstances").RequireAuthorization();
+
+// ---------- Global storage policy (limits / resolve auth / cache) ----------
 app.MapGet("/api/settings/storage", async (MinGo.StaticPages.Application.Abstractions.IStorageSettingsService svc, ClaimsPrincipal user) =>
 {
     if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
         return Results.Forbid();
     var s = await svc.GetAsync();
     return Results.Ok(new StorageSettingsDto(
-        s.Provider.ToString(),
-        s.ServiceUrl,
-        s.Region,
-        s.AccessKey,
-        s.Bucket,
-        s.Prefix,
-        s.ForcePathStyle,
-        s.LocalRoot,
         s.MaxPackageBytes,
         s.MaxFileCount,
         s.MaxSingleFileBytes,
@@ -456,18 +551,8 @@ app.MapPut("/api/settings/storage", async (UpdateStorageSettingsRequest req, Min
         return Results.Forbid();
     try
     {
-        var provider = Enum.Parse<StorageProviderKind>(req.Provider, ignoreCase: true);
         var updated = await svc.UpdateAsync(new StorageSettings
         {
-            Provider = provider,
-            ServiceUrl = req.ServiceUrl,
-            Region = req.Region,
-            AccessKey = req.AccessKey,
-            SecretKey = req.SecretKey,
-            Bucket = req.Bucket,
-            Prefix = req.Prefix,
-            ForcePathStyle = req.ForcePathStyle,
-            LocalRoot = req.LocalRoot,
             MaxPackageBytes = req.MaxPackageBytes,
             MaxFileCount = req.MaxFileCount,
             MaxSingleFileBytes = req.MaxSingleFileBytes,
@@ -476,14 +561,6 @@ app.MapPut("/api/settings/storage", async (UpdateStorageSettingsRequest req, Min
             VersionCacheSeconds = req.VersionCacheSeconds
         });
         return Results.Ok(new StorageSettingsDto(
-            updated.Provider.ToString(),
-            updated.ServiceUrl,
-            updated.Region,
-            updated.AccessKey,
-            updated.Bucket,
-            updated.Prefix,
-            updated.ForcePathStyle,
-            updated.LocalRoot,
             updated.MaxPackageBytes,
             updated.MaxFileCount,
             updated.MaxSingleFileBytes,
@@ -495,14 +572,6 @@ app.MapPut("/api/settings/storage", async (UpdateStorageSettingsRequest req, Min
     {
         return Results.Problem(ex.Message, statusCode: 400);
     }
-}).WithTags("Settings").RequireAuthorization();
-
-app.MapPost("/api/settings/storage/test", async (MinGo.StaticPages.Application.Abstractions.IStorageSettingsService svc, ClaimsPrincipal user) =>
-{
-    if (user.FindFirstValue(ClaimTypes.Role) != RoleNames.Admin)
-        return Results.Forbid();
-    var ok = await svc.TestConnectivityAsync();
-    return Results.Ok(new { ok });
 }).WithTags("Settings").RequireAuthorization();
 
 app.Run();

@@ -2,13 +2,27 @@ using MinGo.StaticPages.Application.Storage;
 
 namespace MinGo.StaticPages.Infrastructure.Storage;
 
-public sealed class LocalObjectStorage(string rootPath) : IObjectStorage
+/// <summary>
+/// Local filesystem object store. <paramref name="prefix"/> is the instance key-root prefix,
+/// applied isomorphically to S3ObjectStorage.FullKey.
+/// </summary>
+public sealed class LocalObjectStorage(string rootPath, string prefix = "") : IObjectStorage
 {
     private readonly string _root = Path.GetFullPath(rootPath);
+    private readonly string _prefix = NormalizePrefix(prefix);
+
+    private static string NormalizePrefix(string prefix)
+        => (prefix ?? string.Empty).Replace('\\', '/').Trim('/');
+
+    private string FullKey(string key)
+    {
+        var k = key.Replace('\\', '/').TrimStart('/');
+        return string.IsNullOrEmpty(_prefix) ? k : $"{_prefix}/{k}";
+    }
 
     private string Resolve(string key)
     {
-        var normalized = key.Replace('\\', '/').TrimStart('/');
+        var normalized = FullKey(key);
         if (normalized.Contains("..", StringComparison.Ordinal))
             throw new InvalidOperationException("Invalid object key.");
 
@@ -64,9 +78,13 @@ public sealed class LocalObjectStorage(string rootPath) : IObjectStorage
         {
             foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
             {
-                var rel = Path.GetRelativePath(_root, file).Replace('\\', '/');
+                var full = Path.GetRelativePath(_root, file).Replace('\\', '/');
+                // Return logical keys (strip instance prefix) like S3ObjectStorage.ListAsync
+                var logical = string.IsNullOrEmpty(_prefix)
+                    ? full
+                    : full[_prefix.Length..].TrimStart('/');
                 var info = new FileInfo(file);
-                results.Add(new ObjectInfo(rel, info.Length, info.LastWriteTimeUtc));
+                results.Add(new ObjectInfo(logical, info.Length, info.LastWriteTimeUtc));
             }
         }
         return Task.FromResult<IReadOnlyList<ObjectInfo>>(results);
@@ -80,6 +98,10 @@ public sealed class LocalObjectStorage(string rootPath) : IObjectStorage
 
     public Task<string?> GetPresignedUrlAsync(string key, TimeSpan expiry, CancellationToken ct = default)
         => Task.FromResult<string?>(null);
+
+    /// <summary>Physical directory for a logical prefix (after instance Prefix is applied).</summary>
+    public string GetPhysicalDirectory(string logicalPrefix)
+        => Resolve(logicalPrefix);
 
     private static async Task WriteFileAsync(string path, Stream content, CancellationToken ct)
     {

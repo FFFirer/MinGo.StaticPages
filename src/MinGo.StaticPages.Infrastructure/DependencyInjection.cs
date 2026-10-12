@@ -15,8 +15,9 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(o => o.UseSqlite(connectionString));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        services.AddSingleton<IObjectStorage, ObjectStorageRouter>();
+        services.AddSingleton<IStorageFactory, StorageFactory>();
         services.AddScoped<IStorageSettingsService, StorageSettingsService>();
+        services.AddScoped<StorageInstanceService>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
         services.AddScoped<ProjectService>();

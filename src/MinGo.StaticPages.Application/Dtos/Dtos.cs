@@ -5,6 +5,8 @@ public sealed record ProjectDto(
     string Name,
     string? DisplayName,
     string? Description,
+    Guid StorageInstanceId,
+    string StorageInstanceName,
     int VersionCount,
     long StorageBytes,
     DateTimeOffset CreatedAt,
@@ -12,7 +14,11 @@ public sealed record ProjectDto(
 
 public sealed record ChannelDto(string Name, Guid? CurrentVersionId, string? CurrentVersionNumber);
 
-public sealed record CreateProjectRequest(string Name, string? DisplayName, string? Description);
+public sealed record CreateProjectRequest(
+    string Name,
+    Guid StorageInstanceId,
+    string? DisplayName = null,
+    string? Description = null);
 
 public sealed record VersionDto(
     Guid Id,
@@ -79,7 +85,8 @@ public sealed record StoragePayload(
     string? Bucket,
     string Prefix,
     string? Endpoint,
-    bool ForcePathStyle);
+    bool ForcePathStyle,
+    string? Instance = null);
 
 public sealed record SpaPayload(bool Enabled, string Fallback);
 
@@ -92,15 +99,8 @@ public sealed record CreateApiKeyRequest(string Name, string Role);
 public sealed record ApiKeyCreatedDto(Guid Id, string Name, string Role, string KeyPrefix, string PlaintextKey, DateTimeOffset CreatedAt);
 public sealed record ApiKeyDto(Guid Id, string Name, string Role, string KeyPrefix, DateTimeOffset CreatedAt, DateTimeOffset? RevokedAt);
 
+/// <summary>Global policy only. Connection fields live on StorageInstanceDto.</summary>
 public sealed record StorageSettingsDto(
-    string Provider,
-    string? ServiceUrl,
-    string Region,
-    string? AccessKey,
-    string Bucket,
-    string Prefix,
-    bool ForcePathStyle,
-    string LocalRoot,
     int MaxPackageBytes,
     int MaxFileCount,
     int MaxSingleFileBytes,
@@ -109,18 +109,46 @@ public sealed record StorageSettingsDto(
     int VersionCacheSeconds);
 
 public sealed record UpdateStorageSettingsRequest(
-    string Provider,
-    string? ServiceUrl,
-    string Region,
-    string? AccessKey,
-    string? SecretKey,
-    string Bucket,
-    string Prefix,
-    bool ForcePathStyle,
-    string LocalRoot,
     int MaxPackageBytes,
     int MaxFileCount,
     int MaxSingleFileBytes,
     bool ResolveRequireAuth,
     int PublishedCacheSeconds,
     int VersionCacheSeconds);
+
+public sealed record StorageInstanceDto(
+    Guid Id,
+    string Name,
+    string Kind,
+    string? LocalRoot,
+    string Prefix,
+    string? ServiceUrl,
+    string Region,
+    string? AccessKey,
+    string Bucket,
+    bool ForcePathStyle,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record CreateStorageInstanceRequest(
+    string Name,
+    string Kind,
+    string? LocalRoot = null,
+    string Prefix = "",
+    string? ServiceUrl = null,
+    string Region = "us-east-1",
+    string? AccessKey = null,
+    string? SecretKey = null,
+    string Bucket = "static-pages",
+    bool ForcePathStyle = true);
+
+public sealed record UpdateStorageInstanceRequest(
+    string Name,
+    string? LocalRoot = null,
+    string Prefix = "",
+    string? ServiceUrl = null,
+    string Region = "us-east-1",
+    string? AccessKey = null,
+    string? SecretKey = null,
+    string Bucket = "static-pages",
+    bool ForcePathStyle = true);

@@ -35,6 +35,7 @@ else
                     <tr>
                         <th>名称</th>
                         <th>显示名</th>
+                        <th>存储实例</th>
                         <th class="text-end">版本数</th>
                         <th class="text-end">存储</th>
                         <th>production</th>
@@ -48,6 +49,7 @@ else
                         <tr>
                             <td><a href="/projects/@p.Id">@p.Name</a></td>
                             <td class="text-body-secondary">@p.DisplayName</td>
+                            <td><span class="badge text-bg-light border">@p.StorageInstanceName</span></td>
                             <td class="text-end">@p.VersionCount</td>
                             <td class="text-end">@FormatSize(p.StorageBytes)</td>
                             <td><span class="badge text-bg-success">@ChannelVersion(p, "production")</span></td>
@@ -78,6 +80,19 @@ else
                         <input class="form-control" @bind="newName" />
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">存储实例（创建后不可改）</label>
+                        <select class="form-select" @bind="newInstanceId">
+                            <option value="">— 请选择 —</option>
+                            @if (instances is not null)
+                            {
+                                @foreach (var i in instances)
+                                {
+                                    <option value="@i.Id">@i.Name (@i.Kind)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">显示名</label>
                         <input class="form-control" @bind="newDisplay" />
                     </div>
@@ -101,9 +116,11 @@ else
 
 @code {
     private List<ProjectDto>? projects;
+    private List<StorageInstanceDto>? instances;
     private bool loading = true;
     private bool showCreate;
     private string newName = "";
+    private string newInstanceId = "";
     private string? newDisplay, newDesc, error;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -111,7 +128,12 @@ else
     private async Task LoadAsync()
     {
         loading = true;
-        try { projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects"); }
+        try
+        {
+            projects = await Http.GetFromJsonAsync<List<ProjectDto>>("/api/projects");
+            try { instances = await Http.GetFromJsonAsync<List<StorageInstanceDto>>("/api/storage-instances"); }
+            catch { instances = []; }
+        }
         catch (Exception ex) { error = ex.Message; }
         loading = false;
         StateHasChanged();
@@ -120,11 +142,17 @@ else
     private async Task CreateAsync()
     {
         error = null;
-        var resp = await Http.PostAsJsonAsync("/api/projects", new CreateProjectRequest(newName, newDisplay, newDesc));
+        if (!Guid.TryParse(newInstanceId, out var instanceId))
+        {
+            error = "请选择存储实例。";
+            return;
+        }
+        var resp = await Http.PostAsJsonAsync("/api/projects", new CreateProjectRequest(newName, instanceId, newDisplay, newDesc));
         if (resp.IsSuccessStatusCode)
         {
             showCreate = false;
             newName = "";
+            newInstanceId = "";
             await LoadAsync();
         }
         else

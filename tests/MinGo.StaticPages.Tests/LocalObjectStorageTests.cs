@@ -52,4 +52,28 @@ public class LocalObjectStorageTests
                 Directory.Delete(root, true);
         }
     }
+
+    [Fact]
+    public async Task Prefix_is_applied_like_s3()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mingo-storage-" + Guid.NewGuid().ToString("N"));
+        var storage = new LocalObjectStorage(root, "sites/prod");
+        try
+        {
+            var key = "projects/p1/versions/v1/files/index.html";
+            await using (var content = new MemoryStream("x"u8.ToArray()))
+                await storage.UploadAsync(key, content, "text/html");
+
+            var physical = Path.Combine(root, "sites", "prod", "projects", "p1", "versions", "v1", "files", "index.html");
+            Assert.True(File.Exists(physical));
+
+            var listed = await storage.ListAsync("projects/p1/versions/v1/files");
+            Assert.Contains(listed, o => o.Key == "projects/p1/versions/v1/files/index.html" || o.Key.EndsWith("index.html"));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
 }

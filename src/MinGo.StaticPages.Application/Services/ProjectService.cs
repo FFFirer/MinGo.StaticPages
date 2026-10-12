@@ -15,16 +15,22 @@ public sealed class ProjectService(IAppDbContext db)
             throw new InvalidOperationException("Project name is required.");
         if (!IsValidName(name))
             throw new InvalidOperationException("Project name must be lowercase alphanumeric with - _ .");
+        if (request.StorageInstanceId == Guid.Empty)
+            throw new InvalidOperationException("storageInstanceId is required.");
 
         var exists = await db.Projects.AnyAsync(p => p.Name == name, ct);
         if (exists)
             throw new InvalidOperationException($"Project '{name}' already exists.");
 
+        var instance = await db.StorageInstances.FirstOrDefaultAsync(i => i.Id == request.StorageInstanceId, ct)
+            ?? throw new InvalidOperationException("Storage instance not found.");
+
         var project = new Project
         {
             Name = name,
             DisplayName = request.DisplayName,
-            Description = request.Description
+            Description = request.Description,
+            StorageInstanceId = instance.Id
         };
         db.Add(project);
 
@@ -87,6 +93,11 @@ public sealed class ProjectService(IAppDbContext db)
             .Where(v => v.ProjectId == p.Id && v.Status == VersionStatus.Active)
             .SumAsync(v => (long?)v.SizeBytes, ct) ?? 0;
 
+        var instanceName = await db.StorageInstances
+            .Where(i => i.Id == p.StorageInstanceId)
+            .Select(i => i.Name)
+            .FirstOrDefaultAsync(ct) ?? "";
+
         var channels = await db.Channels
             .Where(c => c.ProjectId == p.Id)
             .Select(c => new { c.Name, c.CurrentVersionId })
@@ -106,17 +117,21 @@ public sealed class ProjectService(IAppDbContext db)
             channelDtos.Add(new ChannelDto(c.Name, c.CurrentVersionId, num));
         }
 
-        return new ProjectDto(p.Id, p.Name, p.DisplayName, p.Description, versionCount, storageBytes, p.CreatedAt, channelDtos);
+        return new ProjectDto(
+            p.Id, p.Name, p.DisplayName, p.Description,
+            p.StorageInstanceId, instanceName,
+            versionCount, storageBytes, p.CreatedAt, channelDtos);
     }
 }
 
-public sealed class VersionService(IAppDbContext db, IObjectStorage storage, IStorageSettingsService settingsService)
+public sealed class VersionService(IAppDbContext db, IStorageFactory storageFactory, IStorageSettingsService settingsService)
 {
     public async Task<VersionDto> UploadAsync(Guid projectId, Stream zipStream, UploadVersionRequest request, string operatorName, CancellationToken ct = default)
     {
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted, ct)
             ?? throw new InvalidOperationException("Project not found.");
 
+        var storage = await storageFactory.ForProjectAsync(projectId, ct);
         var settings = await settingsService.GetAsync(ct);
         if (request.Number is { Length: > 0 } num)
         {
@@ -187,7 +202,6 @@ public sealed class VersionService(IAppDbContext db, IObjectStorage storage, ISt
         }
         catch
         {
-            // best-effort cleanup of partial upload
             try { await storage.DeletePrefixAsync($"projects/{projectId}/versions/{versionId}", ct); } catch { /* ignore */ }
             throw;
         }

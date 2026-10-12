@@ -141,6 +141,10 @@ public sealed class ResolveService(IAppDbContext db, IStorageSettingsService set
         if (project is null)
             return null;
 
+        var instance = await db.StorageInstances.FirstOrDefaultAsync(i => i.Id == project.StorageInstanceId, ct);
+        if (instance is null)
+            return null;
+
         var settings = await settingsService.GetAsync(ct);
         VersionRecord? versionRecord;
         string access;
@@ -173,6 +177,12 @@ public sealed class ResolveService(IAppDbContext db, IStorageSettingsService set
         var cacheSeconds = access == "version" ? settings.VersionCacheSeconds : settings.PublishedCacheSeconds;
         var immutable = access == "version";
 
+        var isS3 = instance.Kind == StorageInstanceKind.S3;
+        // L2: Local endpoint is the control-plane file-provider base URL (no filesystem root leak).
+        var endpoint = isS3
+            ? instance.ServiceUrl
+            : $"/s/{Uri.EscapeDataString(project.Name)}";
+
         return new ResolveResponse(
             project.Name,
             project.Id,
@@ -181,11 +191,12 @@ public sealed class ResolveService(IAppDbContext db, IStorageSettingsService set
             access,
             resolvedChannel,
             new StoragePayload(
-                settings.Provider == StorageProviderKind.S3 ? "s3" : "local",
-                settings.Bucket,
+                isS3 ? "s3" : "local",
+                instance.Bucket,
                 versionRecord.StoragePrefix,
-                settings.ServiceUrl,
-                settings.ForcePathStyle),
+                endpoint,
+                instance.ForcePathStyle,
+                instance.Name),
             new SpaPayload(versionRecord.SpaEnabled, versionRecord.SpaFallback),
             new CachePayload(cacheSeconds, immutable));
     }

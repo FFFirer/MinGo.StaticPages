@@ -12,7 +12,7 @@
 | 版本 | zip 上传校验、解包、文件清单、软删、不可变 |
 | 发布 | `production` / `preview` 通道指针；发布、回滚、历史 |
 | Resolve API | 按已发布 / 按指定版本返回存储前缀、SPA、缓存建议 |
-| 存储 | Local FS 或任意 S3 兼容端（MinIO/AWS/R2/B2/Ceph…） |
+| 存储 | 多实例（Local / S3 兼容）；项目创建时绑定且不可改；Local Prefix 与 S3 同构 |
 | 鉴权 | Cookie（控制台）+ API Key（CI）；角色 admin/publisher/viewer |
 | 控制台 | 登录、仪表盘、项目、版本上传/发布/回滚、存储设置、解析演示 |
 
@@ -31,25 +31,30 @@ dotnet run --project src/MinGo.StaticPages.Web
 # 默认账号 admin / admin123
 ```
 
-对象布局（Local 默认 `./storage-data`，S3 可配 prefix）：
+对象布局（逻辑键；物理位置 = 实例 `Prefix` + 逻辑键，Local 落在 `LocalRoot` 下）：
 
 ```
 projects/{projectId}/versions/{versionId}/package.zip
 projects/{projectId}/versions/{versionId}/files/**{relativePath}
 ```
 
+首启若无实例会种子默认 Local 实例（`local` / `storage-data`，可删）。创建项目必须指定 `storageInstanceId`，绑定后不可修改。
+
 ## API 摘要
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/auth/login` | 登录（Cookie） |
-| POST | `/api/projects` | 创建项目 |
+| POST | `/api/projects` | 创建项目（必填 `storageInstanceId`） |
 | GET | `/api/projects` | 项目列表 |
 | POST | `/api/projects/{id}/versions` | multipart zip 上传版本 |
 | GET | `/api/versions/{id}` | 版本详情 + 文件清单 |
 | POST | `/api/projects/{id}/publish` | 发布到通道 |
 | POST | `/api/projects/{id}/rollback` | 回滚 |
 | GET | `/api/resolve/{project}` | 数据面解析 |
+| GET/POST/PUT/DELETE | `/api/storage-instances*` | 存储实例 CRUD + `/test` |
+| GET | `/s/{project}/{**path}` | Local FileProvider（仅 Local 实例） |
+| GET | `/s/{project}/_v/{version}/{**path}` | 按版本读（Local） |
 | GET | `/healthz` | 健康检查 |
 
 OpenAPI：开发环境 `/openapi/v1.json`。
