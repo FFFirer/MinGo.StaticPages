@@ -7,14 +7,22 @@ Browser-local light/dark/auto theme preference for the management console, appli
 ## Requirements
 
 ### Requirement: Local theme preference persistence
-The system SHALL persist the user's theme mode in the browser as `localStorage` key `mingo-theme`, whose value MUST be one of `light`, `dark`, or `auto`. Missing or invalid values MUST resolve as `auto`.
+The system SHALL persist the user's theme mode in the browser as key `mingo-theme` (value one of `light`, `dark`, `auto`), writing to `localStorage` first and falling back to `sessionStorage` when `localStorage` is unavailable or rejects writes (private mode, blocked storage on insecure origins). Reads MUST consult `localStorage` first, then `sessionStorage`. Missing or invalid values MUST resolve as `auto`.
 
 #### Scenario: Save selected mode
 - **WHEN** the user selects a theme mode in the switcher
 - **THEN** `localStorage` key `mingo-theme` holds that mode string
 
+#### Scenario: localStorage write failure falls back to sessionStorage
+- **WHEN** the user selects a theme mode and writing `localStorage` throws
+- **THEN** `sessionStorage` key `mingo-theme` holds that mode string and the effective theme still updates immediately
+
+#### Scenario: Choice survives same-tab navigation without localStorage
+- **WHEN** the mode was persisted only to `sessionStorage` and the user navigates to another page in the same tab
+- **THEN** the new document applies the `sessionStorage` mode before first paint
+
 #### Scenario: Invalid stored value falls back to auto
-- **WHEN** `mingo-theme` is missing or not one of `light` / `dark` / `auto`
+- **WHEN** `mingo-theme` is missing or not one of `light` / `dark` / `auto` in both stores
 - **THEN** the system resolves the theme as `auto` and does not throw
 
 ### Requirement: First-paint theme application
@@ -27,6 +35,10 @@ The system SHALL apply the resolved theme to `document.documentElement` as `data
 #### Scenario: Works before Blazor starts
 - **WHEN** the page loads under `prerender: false` or on a static/login shell
 - **THEN** the theme is applied without waiting for an interactive Blazor circuit or WebAssembly
+
+#### Scenario: Unreadable storage resolves via system preference
+- **WHEN** reading both `localStorage` and `sessionStorage` throws
+- **THEN** the inline script resolves `auto` through `prefers-color-scheme` instead of hardcoding a theme, and does not throw
 
 ### Requirement: Theme mode resolution
 The system SHALL map mode `light` and `dark` to that effective theme, and mode `auto` to `dark` when `prefers-color-scheme: dark` matches, otherwise `light`. The effective theme MUST be written to `html[data-bs-theme]` as `light` or `dark` only.

@@ -1,30 +1,60 @@
 /**
  * Client-only theme module (ESM).
  * Storage contract (must match the classic inline script in App.razor):
- *   localStorage['mingo-theme'] = 'light' | 'dark' | 'auto'
- * Missing/invalid values resolve as 'auto'.
+ *   localStorage['mingo-theme'] = 'light' | 'dark' | 'auto', read order
+ *   localStorage -> sessionStorage. Writes go to localStorage first and fall
+ *   back to sessionStorage when localStorage is unavailable (private mode,
+ *   blocked storage on insecure origins), so the choice still survives
+ *   same-tab navigations. Missing/invalid values resolve as 'auto'.
  */
 export const THEME_KEY = 'mingo-theme';
 export const MODES = ['light', 'dark', 'auto'];
 
-function safeGetItem(key) {
+function store(kind) {
     try {
-        return localStorage.getItem(key);
+        return kind === 'session' ? window.sessionStorage : window.localStorage;
     } catch {
+        // Accessing the storage object itself can throw (some private modes).
         return null;
     }
 }
 
-function safeSetItem(key, value) {
-    try {
-        localStorage.setItem(key, value);
-    } catch {
-        // Private mode / storage disabled — apply theme without persistence.
+function readRaw() {
+    for (const kind of ['local', 'session']) {
+        const s = store(kind);
+        if (!s) continue;
+        try {
+            const value = s.getItem(THEME_KEY);
+            if (value !== null) return value;
+        } catch {
+            // Unreadable store — keep looking at the next one.
+        }
+    }
+    return null;
+}
+
+function persist(mode) {
+    const local = store('local');
+    if (local) {
+        try {
+            local.setItem(THEME_KEY, mode);
+            return;
+        } catch {
+            // Fall through to the session-scoped store.
+        }
+    }
+    const session = store('session');
+    if (session) {
+        try {
+            session.setItem(THEME_KEY, mode);
+        } catch {
+            // No persistence available — apply in-memory only.
+        }
     }
 }
 
 export function getMode() {
-    const raw = safeGetItem(THEME_KEY);
+    const raw = readRaw();
     return MODES.includes(raw) ? raw : 'auto';
 }
 
@@ -43,7 +73,7 @@ export function apply(mode = getMode()) {
 
 export function setMode(mode) {
     const next = MODES.includes(mode) ? mode : 'auto';
-    safeSetItem(THEME_KEY, next);
+    persist(next);
     apply(next);
 }
 

@@ -5,20 +5,30 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    @* Theme: localStorage['mingo-theme'] = light|dark|auto. Classic sync script (not type=module) so it runs before first paint. Keep resolve in sync with wwwroot/js/theme.js. *@
+    @* Theme: 'mingo-theme' = light|dark|auto, read order localStorage -> sessionStorage (session is the fallback when localStorage is unavailable). Classic sync script (not type=module) so it runs before first paint. Keep resolve/read order in sync with wwwroot/js/theme.js. *@
     <script>
         (function () {
-            try {
-                var raw = localStorage.getItem('mingo-theme');
-                var mode = (raw === 'light' || raw === 'dark' || raw === 'auto') ? raw : 'auto';
-                var effective = mode === 'auto'
-                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-                    : mode;
-                document.documentElement.setAttribute('data-bs-theme', effective);
-                document.documentElement.setAttribute('data-theme-mode', mode);
-            } catch (e) {
-                document.documentElement.setAttribute('data-bs-theme', 'light');
+            var root = document.documentElement;
+            function resolve(mode) {
+                if (mode === 'light' || mode === 'dark') return mode;
+                try {
+                    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                } catch (e) {
+                    return 'light';
+                }
             }
+            function readRaw() {
+                var value = null;
+                try { value = localStorage.getItem('mingo-theme'); } catch (e) { value = null; }
+                if (value === null) {
+                    try { value = sessionStorage.getItem('mingo-theme'); } catch (e) { value = null; }
+                }
+                return value;
+            }
+            var raw = readRaw();
+            var mode = (raw === 'light' || raw === 'dark' || raw === 'auto') ? raw : 'auto';
+            root.setAttribute('data-bs-theme', resolve(mode));
+            root.setAttribute('data-theme-mode', mode);
         })();
     </script>
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
