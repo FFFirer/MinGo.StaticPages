@@ -113,5 +113,24 @@ function onSystemThemeChange() {
 window.addEventListener('storage', onStorage);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onSystemThemeChange);
 
+/**
+ * Blazor enhanced navigation and enhanced form posts re-sync the document from
+ * the server-rendered response, which drops runtime-only attributes such as
+ * data-bs-theme / data-theme-mode on <html> (the server document does not carry
+ * them), silently reverting the page to the light palette until the next full
+ * page load. Re-apply the stored theme after every enhanced document update so
+ * the palette survives client-side navigation. bindToggles() is idempotent and
+ * keeps any re-rendered switcher buttons bound and in sync.
+ * Reference: https://learn.microsoft.com/aspnet/core/blazor/fundamentals/navigation
+ */
+function reapplyAfterEnhancedUpdates() {
+    if (typeof window.Blazor?.addEventListener !== 'function') return;
+    window.Blazor.addEventListener('enhancedload', () => {
+        bindToggles();
+        apply();
+    });
+}
+
 bindToggles();
 apply();
+reapplyAfterEnhancedUpdates();
