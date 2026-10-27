@@ -18,7 +18,7 @@ RUN dotnet publish src/MinGo.StaticPages.Web/MinGo.StaticPages.Web.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS final
 WORKDIR /app
 COPY --from=build --chown=1654:1654 /app/publish ./
-COPY --from=build /stage/data /data
+COPY --from=build --chown=1654:1654 /stage/data /data
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "MinGo.StaticPages.Web.dll"]
