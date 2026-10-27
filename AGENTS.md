@@ -28,17 +28,19 @@ podman build -f deploy/Dockerfile -t mingo-candidate `
 - 未验证：漏洞扫描、zh-CN 显式格式化测试。
 - GHCR 标签由 metadata-action 生成，自动去掉 `v` 前缀（git 标签 v0.2.2 对应镜像标签 0.2.2 和 latest）。
 
-### 升级注意：≤0.2.1 旧部署切 0.2.2+ 必须 chown 数据目录（已踩）
+### 升级注意：数据目录属主（0.2.2 有 bug，0.2.3 修复）
 
-旧镜像以 root 运行，SQLite 库文件和目录属主是 root；新镜像非 root（uid 1654），启动即崩溃循环：`SQLite Error 8: attempt to write a readonly database`（EnsureCreated 阶段就会触发，因为 SQLite 写操作需要目录写权限建 journal）。服务器上执行一次：
+镜像自 0.2.2 起非 root（uid 1654），SQLite 写库需要目录写权限，属主不对即崩溃循环 `SQLite Error 8/14`。**0.2.2 的坑**：buildah/Podman 的 `COPY --from` 不显式 `--chown` 会把属主重置为 root，导致镜像内 `/data` 是 root 属主，全新卷初始化后照样 Error 14（已本地复现）。0.2.3 起所有跨 stage COPY 一律显式 `--chown=1654:1654`，并验证了"无卷直跑"和"全新命名卷"两种场景均能建库。另注意 Podman 构建缓存不对 `--chown` 参数变更失效，改这类参数后须 `--no-cache` 验证。
+
+≤0.2.1 的旧部署升级时，数据目录/库文件属主仍是 root，需一次性移交（卷里已有数据时删卷不可取）：
 
 ```bash
-# 找到数据挂载路径
-docker inspect <容器> --format '{{json .Mounts}}'
-# 一次性移交属主（命名卷用 docker/ 前缀路径，bind 挂载用实际宿主目录）
+docker inspect <容器> --format '{{json .Mounts}}'   # 找数据挂载路径
 sudo chown -R 1654:1654 <数据目录>
-docker compose up -d   # 或 restart
+docker compose up -d
 ```
+
+卷是空的（从未成功建库）则无需 chown：空卷在容器启动时会从新镜像 `/data` 重新初始化属主。
 - Chiseled 镜像无 shell/包管理器，`podman exec` 进不去 shell；排障用 `podman cp <container>:/app 目标目录` 取文件，或跑 debug stage：`podman build --target build` 后用 sdk 镜像的 find/du 查看发布树。
 
 ### 体积基准数据（复测时对比用）
