@@ -1,0 +1,13 @@
+# Build inputs live in src/ + root props; everything else only bloats the context.
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.vscode/
+.qoder/
+docs/
+openspec/
+tests/
+deploy/
+*.md
