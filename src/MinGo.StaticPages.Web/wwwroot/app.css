@@ -39,3 +39,11 @@
 [data-theme-label].dropdown-toggle::after {
     margin-left: 0.35em;
 }
+
+/* Theme dropdown auto-flip: position menu above the toggle when viewport is too short */
+.theme-dropdown-flipped {
+    top: auto !important;
+    bottom: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.125rem !important;
+}

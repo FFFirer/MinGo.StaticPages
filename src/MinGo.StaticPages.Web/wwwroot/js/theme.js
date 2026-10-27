@@ -134,3 +134,50 @@ function reapplyAfterEnhancedUpdates() {
 bindToggles();
 apply();
 reapplyAfterEnhancedUpdates();
+
+/**
+ * Auto-flip the theme dropdown when there isn't enough space below the toggle button.
+ * Bootstrap 5's Popper.js flip modifier handles this for standard dropdowns, but we
+ * removed `dropdown-menu-end` to let Popper decide horizontal alignment. This handler
+ * ensures the menu flips upward on mobile / small viewports where the navbar sits near
+ * the top of the screen.
+ */
+function bindDropdownAutoFlip() {
+    const root = document.querySelector('[data-theme-root]');
+    if (!root) return;
+
+    const toggle = root.querySelector('.dropdown-toggle');
+    const menu = root.querySelector('.dropdown-menu');
+    if (!toggle || !menu) return;
+
+    // Prevent double-binding after enhanced navigation re-renders
+    if (toggle.dataset.themeDropdownBound === '1') return;
+    toggle.dataset.themeDropdownBound = '1';
+
+    function adjustPosition() {
+        const toggleRect = toggle.getBoundingClientRect();
+        const menuHeight = menu.offsetHeight || 120; // fallback estimate before render
+        const spaceBelow = window.innerHeight - toggleRect.bottom;
+        const spaceAbove = toggleRect.top;
+        const margin = 8; // breathing room from viewport edge
+
+        const flipped = spaceBelow < menuHeight + margin && spaceAbove > menuHeight + margin;
+        menu.classList.toggle('theme-dropdown-flipped', flipped);
+    }
+
+    // Adjust when Bootstrap opens the dropdown
+    toggle.addEventListener('show.bs.dropdown', adjustPosition);
+
+    // Re-adjust on resize/orientation change while open
+    window.addEventListener('resize', () => {
+        if (toggle.getAttribute('aria-expanded') === 'true') {
+            adjustPosition();
+        }
+    });
+}
+
+// Bind auto-flip on initial load and after enhanced navigation
+bindDropdownAutoFlip();
+if (typeof window.Blazor?.addEventListener === 'function') {
+    window.Blazor.addEventListener('enhancedload', bindDropdownAutoFlip);
+}
