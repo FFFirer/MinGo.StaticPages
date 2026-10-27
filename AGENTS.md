@@ -24,8 +24,9 @@ podman build -f deploy/Dockerfile -t mingo-candidate `
 ### 已知副作用与验证状态
 
 - 被删的 bootstrap 变体 URL 返回 200 空内容而非 404（endpoints 清单仍含路由，页面不引用，无功能影响）。
-- 已验证 PASS：容器启动（uid 1654）、SQLite 建库、首页/登录渲染、指纹资源 `bootstrap.min.css` / `bootstrap.bundle.min.js` / `blazor.web.js` 均 200。
-- 未验证：GHCR 压缩传输体积（未推送）、漏洞扫描、zh-CN 显式格式化测试。
+- 已验证 PASS：容器启动（uid 1654）、SQLite 建库、首页/登录渲染、指纹资源 `bootstrap.min.css` / `bootstrap.bundle.min.js` / `blazor.web.js` 均 200；GHCR amd64 压缩传输 134.7 MB（0.2.1）→ 87.5 MB（0.2.2）。
+- 未验证：漏洞扫描、zh-CN 显式格式化测试。
+- GHCR 标签由 metadata-action 生成，自动去掉 `v` 前缀（git 标签 v0.2.2 对应镜像标签 0.2.2 和 latest）。
 - Chiseled 镜像无 shell/包管理器，`podman exec` 进不去 shell；排障用 `podman cp <container>:/app 目标目录` 取文件，或跑 debug stage：`podman build --target build` 后用 sdk 镜像的 find/du 查看发布树。
 
 ### 体积基准数据（复测时对比用）
