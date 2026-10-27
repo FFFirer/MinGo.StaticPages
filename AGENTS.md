@@ -40,7 +40,7 @@ sudo chown -R 1654:1654 <数据目录>
 docker compose up -d
 ```
 
-卷是空的（从未成功建库）则无需 chown：空卷在容器启动时会从新镜像 `/data` 重新初始化属主。
+卷初始化行为引擎不同：**Podman 空卷会继承镜像内目录属主；Docker 命名卷根目录始终是 root:root**（镜像目录属主不传播），所以 Docker/Portainer 部署即使升级到 0.2.3+ 仍需对卷执行一次上面的 chown。
 - Chiseled 镜像无 shell/包管理器，`podman exec` 进不去 shell；排障用 `podman cp <container>:/app 目标目录` 取文件，或跑 debug stage：`podman build --target build` 后用 sdk 镜像的 find/du 查看发布树。
 
 ### 体积基准数据（复测时对比用）
