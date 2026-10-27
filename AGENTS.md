@@ -27,6 +27,18 @@ podman build -f deploy/Dockerfile -t mingo-candidate `
 - 已验证 PASS：容器启动（uid 1654）、SQLite 建库、首页/登录渲染、指纹资源 `bootstrap.min.css` / `bootstrap.bundle.min.js` / `blazor.web.js` 均 200；GHCR amd64 压缩传输 134.7 MB（0.2.1）→ 87.5 MB（0.2.2）。
 - 未验证：漏洞扫描、zh-CN 显式格式化测试。
 - GHCR 标签由 metadata-action 生成，自动去掉 `v` 前缀（git 标签 v0.2.2 对应镜像标签 0.2.2 和 latest）。
+
+### 升级注意：≤0.2.1 旧部署切 0.2.2+ 必须 chown 数据目录（已踩）
+
+旧镜像以 root 运行，SQLite 库文件和目录属主是 root；新镜像非 root（uid 1654），启动即崩溃循环：`SQLite Error 8: attempt to write a readonly database`（EnsureCreated 阶段就会触发，因为 SQLite 写操作需要目录写权限建 journal）。服务器上执行一次：
+
+```bash
+# 找到数据挂载路径
+docker inspect <容器> --format '{{json .Mounts}}'
+# 一次性移交属主（命名卷用 docker/ 前缀路径，bind 挂载用实际宿主目录）
+sudo chown -R 1654:1654 <数据目录>
+docker compose up -d   # 或 restart
+```
 - Chiseled 镜像无 shell/包管理器，`podman exec` 进不去 shell；排障用 `podman cp <container>:/app 目标目录` 取文件，或跑 debug stage：`podman build --target build` 后用 sdk 镜像的 find/du 查看发布树。
 
 ### 体积基准数据（复测时对比用）
